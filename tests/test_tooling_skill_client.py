@@ -5,7 +5,6 @@ import http.server
 import importlib.util
 import json
 import threading
-import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,14 +21,6 @@ BODY = {"state": "x"}
 
 # What a test server records about each request: method, path, Authorization header, body.
 Request = tuple[str, str, str | None, bytes]
-
-
-@pytest.fixture(autouse=True)
-def no_proxy(monkeypatch):
-    """Local servers are reached directly: `urlopen` would send them to the proxy of the
-    environment or of the system settings (WinINET, macOS) even for 127.0.0.1."""
-    handler = urllib.request.ProxyHandler({})
-    monkeypatch.setattr(urllib.request, "_opener", urllib.request.build_opener(handler))
 
 
 @pytest.fixture(scope="module")

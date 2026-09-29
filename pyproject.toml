@@ -39,11 +39,12 @@ cpu = [
   "huggingface-hub>=1.0",  # config.download_model imports it directly
   "spark-mlx-llm @ git+https://github.com/XHToken/Spark-MLX-LLM.git@de2b4379fa1e2f2e1f99d84c83f0e008f651d86c",
 ]
-# Development: tests, linter, formatter, type checker, dependency checker.
+# Development: tests (random order), linter, formatter, type checker, dependency checker.
 test = [
   "pytest>=8.4,<10",
   "httpx>=0.28,<1",
   "ruff>=0.16",
+  "pytest-randomly>=5.0",
   "pytest-timeout>=2.4",
   "mypy>=2.3",
   "deptry>=0.25",
