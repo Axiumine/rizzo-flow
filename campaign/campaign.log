@@ -1,0 +1,258 @@
+[21:08:55] start cuda-4b-q8_0-f16-T3
+[21:09:16] done  cuda-4b-q8_0-f16-T3 ok 8.2s exit [0, 0, 0]
+[21:09:16] start cuda-4b-q8_0-f16-T4
+[21:09:34] done  cuda-4b-q8_0-f16-T4 ok 4.6s exit [0]
+[21:09:34] start cuda-4b-q8_0-f16-T5
+[21:09:50] done  cuda-4b-q8_0-f16-T5 ok 3.6s exit [0]
+[21:09:50] start cuda-4b-q8_0-f16-T6
+[21:10:11] done  cuda-4b-q8_0-f16-T6 ok 7.6s exit [0]
+[21:10:11] start cuda-4b-q8_0-f16-T7
+[21:15:00] done  cuda-4b-q8_0-f16-T7 ok 275.7s exit [0]
+[21:15:00] start cuda-4b-q8_0-f16-T9
+[21:16:14] done  cuda-4b-q8_0-f16-T9 ok 60.8s exit [0]
+[21:16:14] start cuda-4b-bf16-f16-T3
+[21:16:41] done  cuda-4b-bf16-f16-T3 ok 13.3s exit [0, 0, 0]
+[21:16:41] start cuda-4b-bf16-f16-T4
+[21:17:00] done  cuda-4b-bf16-f16-T4 ok 6.2s exit [0]
+[21:17:00] start cuda-4b-bf16-f16-T5
+[21:17:18] done  cuda-4b-bf16-f16-T5 ok 5.1s exit [0]
+[21:17:18] start cuda-4b-bf16-f16-T6
+[21:17:41] done  cuda-4b-bf16-f16-T6 ok 9.3s exit [0]
+[21:17:41] start cuda-4b-bf16-f16-T7
+[21:22:44] done  cuda-4b-bf16-f16-T7 ok 290.0s exit [0]
+[21:22:44] start cuda-4b-bf16-f16-T9
+[21:24:01] done  cuda-4b-bf16-f16-T9 ok 64.4s exit [0]
+[21:24:01] start cuda-4b-q4_k_m-f16-T3
+[21:24:20] done  cuda-4b-q4_k_m-f16-T3 ok 5.6s exit [0, 0, 0]
+[21:24:20] start cuda-4b-q4_k_m-f16-T4
+[21:24:37] done  cuda-4b-q4_k_m-f16-T4 ok 3.8s exit [0]
+[21:24:37] start cuda-4b-q4_k_m-f16-T5
+[21:24:53] done  cuda-4b-q4_k_m-f16-T5 ok 2.7s exit [0]
+[21:24:53] start cuda-4b-q4_k_m-f16-T6
+[21:25:13] done  cuda-4b-q4_k_m-f16-T6 ok 6.9s exit [0]
+[21:25:13] start cuda-4b-q4_k_m-f16-T7
+[21:26:32] done  cuda-4b-q4_k_m-f16-T7 ok 66.4s exit [0]
+[21:26:32] start cuda-4b-q4_k_m-f16-T9
+[21:27:48] done  cuda-4b-q4_k_m-f16-T9 ok 62.8s exit [0]
+[21:27:48] start cuda-1.7b-q4_k_m-f16-T3
+[21:28:05] done  cuda-1.7b-q4_k_m-f16-T3 ok 3.5s exit [0, 0, 0]
+[21:28:05] start cuda-1.7b-q4_k_m-f16-T4
+[21:28:20] done  cuda-1.7b-q4_k_m-f16-T4 ok 2.0s exit [0]
+[21:28:20] start cuda-1.7b-q4_k_m-f16-T5
+[21:28:34] done  cuda-1.7b-q4_k_m-f16-T5 ok 1.5s exit [0]
+[21:28:34] start cuda-1.7b-q4_k_m-f16-T6
+[21:28:51] done  cuda-1.7b-q4_k_m-f16-T6 ok 3.7s exit [0]
+[21:28:51] start cuda-1.7b-q4_k_m-f16-T7
+[21:29:38] done  cuda-1.7b-q4_k_m-f16-T7 ok 33.6s exit [0]
+[21:29:38] start cuda-1.7b-q4_k_m-f16-T9
+[21:30:22] done  cuda-1.7b-q4_k_m-f16-T9 ok 30.9s exit [0]
+[21:30:22] start cuda-1.7b-bf16-f16-T3
+[21:30:42] done  cuda-1.7b-bf16-f16-T3 ok 6.6s exit [0, 0, 0]
+[21:30:42] start cuda-1.7b-bf16-f16-T4
+[21:30:58] done  cuda-1.7b-bf16-f16-T4 ok 3.1s exit [0]
+[21:30:58] start cuda-1.7b-bf16-f16-T5
+[21:31:13] done  cuda-1.7b-bf16-f16-T5 ok 2.5s exit [0]
+[21:31:13] start cuda-1.7b-bf16-f16-T6
+[21:31:31] done  cuda-1.7b-bf16-f16-T6 ok 4.7s exit [0]
+[21:31:31] start cuda-1.7b-bf16-f16-T7
+[21:32:19] done  cuda-1.7b-bf16-f16-T7 ok 35.0s exit [0]
+[21:32:19] start cuda-1.7b-bf16-f16-T9
+[21:33:04] done  cuda-1.7b-bf16-f16-T9 ok 31.6s exit [0]
+[21:33:04] start cuda-4b-q8_0-q8_0-T4
+[21:33:22] done  cuda-4b-q8_0-q8_0-T4 ok 4.6s exit [0]
+[21:33:22] start cuda-4b-q8_0-q8_0-T7
+[21:34:39] done  cuda-4b-q8_0-q8_0-T7 ok 64.2s exit [0]
+[21:34:39] start cuda-4b-q8_0-q4_0-T4
+[21:34:57] done  cuda-4b-q8_0-q4_0-T4 ok 4.4s exit [0]
+[21:34:57] start cuda-4b-q8_0-q4_0-T7
+[21:36:14] done  cuda-4b-q8_0-q4_0-T7 ok 64.0s exit [0]
+[21:36:14] start cuda-4b-bf16-q8_0-T4
+[21:36:34] done  cuda-4b-bf16-q8_0-T4 ok 6.2s exit [0]
+[21:36:34] start cuda-4b-bf16-q8_0-T7
+[21:37:55] done  cuda-4b-bf16-q8_0-T7 ok 67.9s exit [0]
+[21:37:55] start cuda-4b-bf16-q4_0-T4
+[21:38:14] done  cuda-4b-bf16-q4_0-T4 ok 6.1s exit [0]
+[21:38:14] start cuda-4b-bf16-q4_0-T7
+[21:39:35] done  cuda-4b-bf16-q4_0-T7 ok 67.8s exit [0]
+[21:39:35] start cuda-4b-q4_k_m-q8_0-T4
+[21:39:52] done  cuda-4b-q4_k_m-q8_0-T4 ok 3.7s exit [0]
+[21:39:52] start cuda-4b-q4_k_m-q8_0-T7
+[21:41:12] done  cuda-4b-q4_k_m-q8_0-T7 ok 66.7s exit [0]
+[21:41:12] start cuda-4b-q4_k_m-q4_0-T4
+[21:41:29] done  cuda-4b-q4_k_m-q4_0-T4 ok 3.6s exit [0]
+[21:41:29] start cuda-4b-q4_k_m-q4_0-T7
+[21:42:48] done  cuda-4b-q4_k_m-q4_0-T7 ok 66.3s exit [0]
+[21:42:48] start cuda-1.7b-q8_0-q8_0-T4
+[21:43:04] done  cuda-1.7b-q8_0-q8_0-T4 ok 2.4s exit [0]
+[21:43:04] start cuda-1.7b-q8_0-q8_0-T7
+[21:43:50] done  cuda-1.7b-q8_0-q8_0-T7 ok 33.2s exit [0]
+[21:43:50] start cuda-1.7b-q8_0-q4_0-T4
+[21:44:06] done  cuda-1.7b-q8_0-q4_0-T4 ok 2.4s exit [0]
+[21:44:06] start cuda-1.7b-q8_0-q4_0-T7
+[21:44:52] done  cuda-1.7b-q8_0-q4_0-T7 ok 32.9s exit [0]
+[21:44:52] start cuda-1.7b-q4_k_m-q8_0-T4
+[21:45:07] done  cuda-1.7b-q4_k_m-q8_0-T4 ok 2.1s exit [0]
+[21:45:07] start cuda-1.7b-q4_k_m-q8_0-T7
+[21:45:54] done  cuda-1.7b-q4_k_m-q8_0-T7 ok 34.0s exit [0]
+[21:45:54] start cuda-1.7b-q4_k_m-q4_0-T4
+[21:46:10] done  cuda-1.7b-q4_k_m-q4_0-T4 ok 2.1s exit [0]
+[21:46:10] start cuda-1.7b-q4_k_m-q4_0-T7
+[21:46:57] done  cuda-1.7b-q4_k_m-q4_0-T7 ok 33.8s exit [0]
+[21:46:57] start cuda-1.7b-bf16-q8_0-T4
+[21:47:13] done  cuda-1.7b-bf16-q8_0-T4 ok 3.1s exit [0]
+[21:47:13] start cuda-1.7b-bf16-q8_0-T7
+[21:48:02] done  cuda-1.7b-bf16-q8_0-T7 ok 35.5s exit [0]
+[21:48:02] start cuda-1.7b-bf16-q4_0-T4
+[21:48:18] done  cuda-1.7b-bf16-q4_0-T4 ok 3.1s exit [0]
+[21:48:18] start cuda-1.7b-bf16-q4_0-T7
+[21:49:07] done  cuda-1.7b-bf16-q4_0-T7 ok 35.6s exit [0]
+[21:49:07] start vulkan-4b-q8_0-f16-T4
+[21:49:33] done  vulkan-4b-q8_0-f16-T4 ok 12.9s exit [0]
+[21:49:33] start vulkan-4b-q8_0-f16-T7
+[21:55:48] done  vulkan-4b-q8_0-f16-T7 ok 361.4s exit [0]
+[21:55:48] start cuda-4b-q8_0-f16-T7-batch1
+[21:56:45] done  cuda-4b-q8_0-f16-T7-batch1 ok 43.7s exit [0]
+[21:56:45] start cuda-4b-q8_0-f16-T7-batch2
+[21:57:39] done  cuda-4b-q8_0-f16-T7-batch2 ok 40.8s exit [0]
+[21:57:39] start cuda-4b-q8_0-f16-T7-batch4
+[21:58:30] done  cuda-4b-q8_0-f16-T7-batch4 ok 38.2s exit [0]
+[21:58:30] start cuda-4b-q8_0-f16-T7-batch8
+[21:59:21] done  cuda-4b-q8_0-f16-T7-batch8 ok 38.0s exit [0]
+[21:59:21] start cuda-4b-q8_0-f16-T7-batch16
+[22:00:12] done  cuda-4b-q8_0-f16-T7-batch16 ok 37.7s exit [0]
+[22:00:12] start cpu-4b-q8_0-f16-T4-threadsdefault
+[22:02:28] done  cpu-4b-q8_0-f16-T4-threadsdefault ok 123.0s exit [0]
+[22:02:28] start cpu-4b-q8_0-f16-T4-threads16
+[22:03:22] done  cpu-4b-q8_0-f16-T4-threads16 ok 41.4s exit [0]
+[22:03:22] start cpu-4b-q8_0-f16-T4-threads32
+[22:04:27] done  cpu-4b-q8_0-f16-T4-threads32 ok 51.1s exit [0]
+[22:04:27] start cpu-4b-q8_0-f16-T3
+[22:04:52] done  cpu-4b-q8_0-f16-T3 ok 12.5s exit [0, 0, 0]
+[22:04:52] start cpu-4b-q8_0-f16-T4
+[22:05:47] done  cpu-4b-q8_0-f16-T4 ok 41.6s exit [0]
+[22:05:47] start cpu-4b-q8_0-f16-T5
+[22:06:18] done  cpu-4b-q8_0-f16-T5 ok 18.2s exit [0]
+[22:06:18] start cpu-4b-q8_0-f16-T6
+[22:08:20] done  cpu-4b-q8_0-f16-T6 ok 108.3s exit [0]
+[22:08:20] start cpu-4b-q8_0-f16-T7
+[22:30:05] done  cpu-4b-q8_0-f16-T7 ok 1292.3s exit [0]
+[22:30:05] start cpu-4b-q8_0-f16-T9
+[22:50:13] done  cpu-4b-q8_0-f16-T9 ok 1194.8s exit [0]
+[22:50:13] start cpu-4b-bf16-f16-T3
+[22:50:43] done  cpu-4b-bf16-f16-T3 ok 16.6s exit [0, 0, 0]
+[22:50:43] start cpu-4b-bf16-f16-T4
+[22:51:38] done  cpu-4b-bf16-f16-T4 ok 41.8s exit [0]
+[22:51:38] start cpu-4b-bf16-f16-T5
+[22:52:10] done  cpu-4b-bf16-f16-T5 ok 19.4s exit [0]
+[22:52:10] start cpu-4b-bf16-f16-T6
+[22:54:09] done  cpu-4b-bf16-f16-T6 ok 105.9s exit [0]
+[22:54:09] start cpu-4b-bf16-f16-T7
+[23:15:11] done  cpu-4b-bf16-f16-T7 ok 1248.0s exit [0]
+[23:15:11] start cpu-4b-bf16-f16-T9
+[23:34:42] done  cpu-4b-bf16-f16-T9 ok 1158.2s exit [0]
+[23:34:42] start cpu-4b-q4_k_m-f16-T3
+[23:35:06] done  cpu-4b-q4_k_m-f16-T3 ok 10.8s exit [0, 0, 0]
+[23:35:06] start cpu-4b-q4_k_m-f16-T4
+[23:35:56] done  cpu-4b-q4_k_m-f16-T4 ok 36.9s exit [0]
+[23:35:56] start cpu-4b-q4_k_m-f16-T5
+[23:36:25] done  cpu-4b-q4_k_m-f16-T5 ok 16.2s exit [0]
+[23:36:25] start cpu-4b-q4_k_m-f16-T6
+[23:38:15] done  cpu-4b-q4_k_m-f16-T6 ok 96.7s exit [0]
+[23:38:15] start cpu-4b-q4_k_m-f16-T7
+[23:57:44] done  cpu-4b-q4_k_m-f16-T7 ok 1155.7s exit [0]
+[23:57:44] start cpu-4b-q4_k_m-f16-T9
+[00:15:43] done  cpu-4b-q4_k_m-f16-T9 ok 1065.1s exit [0]
+[00:15:43] start cpu-1.7b-q8_0-f16-T3
+[00:16:01] done  cpu-1.7b-q8_0-f16-T3 ok 5.2s exit [0, 0, 0]
+[00:16:01] start cpu-1.7b-q8_0-f16-T4
+[00:16:31] done  cpu-1.7b-q8_0-f16-T4 ok 17.1s exit [0]
+[00:16:31] start cpu-1.7b-q8_0-f16-T5
+[00:16:52] done  cpu-1.7b-q8_0-f16-T5 ok 7.5s exit [0]
+[00:16:52] start cpu-1.7b-q8_0-f16-T6
+[00:17:49] done  cpu-1.7b-q8_0-f16-T6 ok 43.8s exit [0]
+[00:17:49] start cpu-1.7b-q8_0-f16-T7
+[00:26:38] done  cpu-1.7b-q8_0-f16-T7 ok 516.0s exit [0]
+[00:26:38] start cpu-1.7b-q8_0-f16-T9
+[00:34:48] done  cpu-1.7b-q8_0-f16-T9 ok 476.9s exit [0]
+[00:34:48] start cpu-1.7b-q4_k_m-f16-T3
+[00:35:06] done  cpu-1.7b-q4_k_m-f16-T3 ok 4.7s exit [0, 0, 0]
+[00:35:06] start cpu-1.7b-q4_k_m-f16-T4
+[00:35:34] done  cpu-1.7b-q4_k_m-f16-T4 ok 14.9s exit [0]
+[00:35:34] start cpu-1.7b-q4_k_m-f16-T5
+[00:35:54] done  cpu-1.7b-q4_k_m-f16-T5 ok 6.7s exit [0]
+[00:35:54] start cpu-1.7b-q4_k_m-f16-T6
+[00:36:46] done  cpu-1.7b-q4_k_m-f16-T6 ok 38.7s exit [0]
+[00:36:46] start cpu-1.7b-q4_k_m-f16-T7
+[00:44:42] done  cpu-1.7b-q4_k_m-f16-T7 ok 462.3s exit [0]
+[00:44:42] start cpu-1.7b-q4_k_m-f16-T9
+[00:52:02] done  cpu-1.7b-q4_k_m-f16-T9 ok 427.3s exit [0]
+[00:52:02] start cpu-1.7b-bf16-f16-T3
+[00:52:22] done  cpu-1.7b-bf16-f16-T3 ok 7.1s exit [0, 0, 0]
+[00:52:22] start cpu-1.7b-bf16-f16-T4
+[00:52:52] done  cpu-1.7b-bf16-f16-T4 ok 16.9s exit [0]
+[00:52:52] start cpu-1.7b-bf16-f16-T5
+[00:53:13] done  cpu-1.7b-bf16-f16-T5 ok 8.0s exit [0]
+[00:53:13] start cpu-1.7b-bf16-f16-T6
+[00:54:08] done  cpu-1.7b-bf16-f16-T6 ok 42.0s exit [0]
+[00:54:08] start cpu-1.7b-bf16-f16-T7
+[01:02:24] done  cpu-1.7b-bf16-f16-T7 ok 482.1s exit [0]
+[01:02:24] start cpu-1.7b-bf16-f16-T9
+[01:10:19] done  cpu-1.7b-bf16-f16-T9 ok 462.3s exit [0]
+[01:10:19] start cpu-4b-q8_0-q8_0-T4
+[01:11:16] done  cpu-4b-q8_0-q8_0-T4 ok 43.8s exit [0]
+[01:11:16] start cpu-4b-q8_0-q8_0-T7
+[01:41:27] done  cpu-4b-q8_0-q8_0-T7 ok 1796.9s exit [0]
+[01:41:27] start cpu-4b-q8_0-q4_0-T4
+[01:42:27] done  cpu-4b-q8_0-q4_0-T4 ok 47.0s exit [0]
+[01:42:27] start cpu-4b-q8_0-q4_0-T7
+[02:18:33] done  cpu-4b-q8_0-q4_0-T7 ok 2152.5s exit [0]
+[02:18:33] start cpu-4b-bf16-q8_0-T4
+[02:19:30] done  cpu-4b-bf16-q8_0-T4 ok 44.2s exit [0]
+[02:19:30] start cpu-4b-bf16-q8_0-T7
+[02:47:45] done  cpu-4b-bf16-q8_0-T7 ok 1681.4s exit [0]
+[02:47:45] start cpu-4b-bf16-q4_0-T4
+[02:48:46] done  cpu-4b-bf16-q4_0-T4 ok 47.6s exit [0]
+[02:48:46] start cpu-4b-bf16-q4_0-T7
+[03:22:51] done  cpu-4b-bf16-q4_0-T7 ok 2032.4s exit [0]
+[03:22:51] start cpu-4b-q4_k_m-q8_0-T4
+[03:23:44] done  cpu-4b-q4_k_m-q8_0-T4 ok 39.3s exit [0]
+[03:23:44] start cpu-4b-q4_k_m-q8_0-T7
+[03:50:31] done  cpu-4b-q4_k_m-q8_0-T7 ok 1593.9s exit [0]
+[03:50:31] start cpu-4b-q4_k_m-q4_0-T4
+[03:51:27] done  cpu-4b-q4_k_m-q4_0-T4 ok 42.5s exit [0]
+[03:51:27] start cpu-4b-q4_k_m-q4_0-T7
+[04:24:09] done  cpu-4b-q4_k_m-q4_0-T7 ok 1948.8s exit [0]
+[04:24:09] start cpu-1.7b-q8_0-q8_0-T4
+[04:24:40] done  cpu-1.7b-q8_0-q8_0-T4 ok 17.6s exit [0]
+[04:24:40] start cpu-1.7b-q8_0-q8_0-T7
+[04:35:40] done  cpu-1.7b-q8_0-q8_0-T7 ok 646.4s exit [0]
+[04:35:40] start cpu-1.7b-q8_0-q4_0-T4
+[04:36:12] done  cpu-1.7b-q8_0-q4_0-T4 ok 18.8s exit [0]
+[04:36:12] start cpu-1.7b-q8_0-q4_0-T7
+[04:49:58] done  cpu-1.7b-q8_0-q4_0-T7 ok 813.3s exit [0]
+[04:49:58] start cpu-1.7b-q4_k_m-q8_0-T4
+[04:50:27] done  cpu-1.7b-q4_k_m-q8_0-T4 ok 15.7s exit [0]
+[04:50:27] start cpu-1.7b-q4_k_m-q8_0-T7
+[05:00:27] done  cpu-1.7b-q4_k_m-q8_0-T7 ok 586.3s exit [0]
+[05:00:27] start cpu-1.7b-q4_k_m-q4_0-T4
+[05:00:57] done  cpu-1.7b-q4_k_m-q4_0-T4 ok 17.1s exit [0]
+[05:00:57] start cpu-1.7b-q4_k_m-q4_0-T7
+[05:13:38] done  cpu-1.7b-q4_k_m-q4_0-T7 ok 747.4s exit [0]
+[05:13:38] start cpu-1.7b-bf16-q8_0-T4
+[05:14:08] done  cpu-1.7b-bf16-q8_0-T4 ok 17.6s exit [0]
+[05:14:08] start cpu-1.7b-bf16-q8_0-T7
+[05:24:41] done  cpu-1.7b-bf16-q8_0-T7 ok 619.0s exit [0]
+[05:24:41] start cpu-1.7b-bf16-q4_0-T4
+[05:25:13] done  cpu-1.7b-bf16-q4_0-T4 ok 18.8s exit [0]
+[05:25:13] start cpu-1.7b-bf16-q4_0-T7
+[05:38:21] done  cpu-1.7b-bf16-q4_0-T7 ok 774.7s exit [0]
+[05:38:21] start cpu-4b-q8_0-f16-T7-batch1
+[05:50:36] done  cpu-4b-q8_0-f16-T7-batch1 ok 722.4s exit [0]
+[05:50:36] start cpu-4b-q8_0-f16-T7-batch2
+[06:02:10] done  cpu-4b-q8_0-f16-T7-batch2 ok 680.6s exit [0]
+[06:02:10] start cpu-4b-q8_0-f16-T7-batch4
+[06:13:30] done  cpu-4b-q8_0-f16-T7-batch4 ok 667.1s exit [0]
+[06:13:30] start cpu-4b-q8_0-f16-T7-batch8
+[06:24:47] done  cpu-4b-q8_0-f16-T7-batch8 ok 663.9s exit [0]
+[06:24:47] start cpu-4b-q8_0-f16-T7-batch16
+[06:35:59] done  cpu-4b-q8_0-f16-T7-batch16 ok 658.7s exit [0]
