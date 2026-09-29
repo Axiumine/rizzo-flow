@@ -121,7 +121,9 @@ inferenza: liberarne il contesto sotto di lui sarebbe un use after free).
   `allow_abstain: false`, 25 con astensione, 24/23 ancore per `numeric`. SemIf usa lo stesso
   trucco con 16 lettere. Per andare oltre servirebbero etichette a 2 token (chain rule),
   sì/no per opzione, o etichette `AA…ZZ` (497/676 sono token singoli in Spark) — non implementato,
-  decisione dell'utente: restare a 26.
+  decisione dell'utente: restare a 26. `prompts.check_score_request` è il controllo che i `score` di
+  entrambi i backend fanno prima di toccare il modello (modo noto, almeno una domanda, ogni job
+  comincia col prefisso e ha almeno un token in più).
 - **Prefisso condiviso (descrizione del backend MLX).** Messaggio user = `render_state(state)` + `render_question(...)`.
   Lo state è identico per tutte le domande → prefill una volta (blocchi da 512), confine del
   prefisso verificato token per token (ultimo token scartato per i merge BPE, mai dedotto dalla

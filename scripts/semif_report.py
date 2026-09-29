@@ -12,19 +12,15 @@ import argparse
 import gzip
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
 
-from semif_compare import read, write
+from semif_compare import dev_groups, read, write
 
 
 def held_out(rows, perturbed):
     """Same split as `prompt_lab.split`: source groups alternate inside each family, the odd
     ones were never used to choose the prompt."""
-    families = defaultdict(set)
-    for row in rows:
-        families[row["family"]].add(row["group_id"])
-    dev = {g for groups in families.values() for i, g in enumerate(sorted(groups)) if i % 2 == 0}
+    dev = dev_groups(rows)
     return (
         [row for row in rows if row["group_id"] not in dev],
         [row for row in perturbed if row["provenance"]["source_group_id"] not in dev],

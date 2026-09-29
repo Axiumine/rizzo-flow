@@ -41,6 +41,16 @@ class Compiled:
     prompt_sha256: str
 
 
+def check_score_request(prefix: list[int], jobs: list[Compiled], mode: str) -> None:
+    """What every backend's `score` refuses before it runs the model."""
+    if mode not in ("shared", "direct"):
+        raise ValueError("Unknown execution mode")
+    if not jobs:
+        raise ValueError("No decisions supplied")
+    if any(job.tokens[: len(prefix)] != prefix or len(job.tokens) <= len(prefix) for job in jobs):
+        raise ValueError("Invalid shared prefix")
+
+
 def canonical(value) -> str:
     return json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False

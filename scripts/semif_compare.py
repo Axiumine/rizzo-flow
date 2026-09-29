@@ -36,6 +36,14 @@ def write(path, value):
             stream.write(json.dumps(value, indent=2, allow_nan=False) + "\n")
 
 
+def dev_groups(rows):
+    """Source groups the prompt was chosen on: they alternate inside each family, even -> dev."""
+    families = defaultdict(set)
+    for row in rows:
+        families[row["family"]].add(row["group_id"])
+    return {g for groups in families.values() for i, g in enumerate(sorted(groups)) if i % 2 == 0}
+
+
 class MlxMemory:
     key = "peak_mlx_bytes"
 

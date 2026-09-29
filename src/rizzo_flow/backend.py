@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from .config import FLOW_CHECKPOINTS, RUNTIME_REVISION, check_limits, identify
-from .prompts import PROMPT_VERSION, Compiled, canonical
+from .prompts import PROMPT_VERSION, Compiled, canonical, check_score_request
 from .runtime import import_mlx, resolve
 
 
@@ -155,14 +155,7 @@ class SparkBackend:
     def score(self, prefix: list[int], jobs: list[Compiled], mode="shared"):
         import mlx.core as mx
 
-        if mode not in ("shared", "direct"):
-            raise ValueError("Unknown execution mode")
-        if not jobs:
-            raise ValueError("No decisions supplied")
-        if any(
-            job.tokens[: len(prefix)] != prefix or len(job.tokens) <= len(prefix) for job in jobs
-        ):
-            raise ValueError("Invalid shared prefix")
+        check_score_request(prefix, jobs, mode)
         started = time.perf_counter()
         mx.reset_peak_memory()
         result = {}

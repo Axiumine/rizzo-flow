@@ -14,7 +14,7 @@ from jinja2 import TemplateError
 from . import llama_release
 from .config import GGUF, check_limits, identify
 from .llama_cpp import Library, Session
-from .prompts import PROMPT_VERSION, Compiled, canonical
+from .prompts import PROMPT_VERSION, Compiled, canonical, check_score_request
 
 N_BATCH = 2048  # most tokens handed to one llama_decode call
 # general.file_type of the quantizations pinned in config.GGUF (enum llama_ftype)
@@ -219,14 +219,7 @@ class LlamaBackend:
         return max(self.session.idle_free - self._lowest_free, 0)
 
     def score(self, prefix: list[int], jobs: list[Compiled], mode="shared"):
-        if mode not in ("shared", "direct"):
-            raise ValueError("Unknown execution mode")
-        if not jobs:
-            raise ValueError("No decisions supplied")
-        if any(
-            job.tokens[: len(prefix)] != prefix or len(job.tokens) <= len(prefix) for job in jobs
-        ):
-            raise ValueError("Invalid shared prefix")
+        check_score_request(prefix, jobs, mode)
         session = self.session
         started = time.perf_counter()
         result = {}

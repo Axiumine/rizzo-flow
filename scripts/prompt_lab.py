@@ -20,23 +20,18 @@ SEMIF = Path(os.environ.get("SEMIF_DIR", Path.home() / "Git-projects" / "SemIf")
 # every import below stays after that on purpose, hence the E402 markers.
 sys.path[:0] = [str(SEMIF / "benchmarks")]
 import evaluate
+from semif_compare import dev_groups
 
 from rizzo_flow import prompts
 from rizzo_flow.backend import SparkBackend
+from rizzo_flow.cli import read_jsonl
 from rizzo_flow.engine import Engine
 from rizzo_flow.evaluation import evaluate as smoke_evaluate
 
 
-def read(path):
-    return [json.loads(x) for x in Path(path).read_text(encoding="utf-8").splitlines() if x.strip()]
-
-
 def split(rows, perturbed):
     """Alternate source groups inside each family: even -> dev, odd -> held-out."""
-    families = defaultdict(set)
-    for row in rows:
-        families[row["family"]].add(row["group_id"])
-    dev = {g for groups in families.values() for i, g in enumerate(sorted(groups)) if i % 2 == 0}
+    dev = dev_groups(rows)
 
     def part(rs, key, keep):
         return [r for r in rs if (key(r) in dev) == keep]
@@ -207,9 +202,9 @@ def main():
     names = sys.argv[2].split(",") if len(sys.argv) > 2 else list(VARIANTS)
     data = SEMIF / "benchmarks" / "data"
     base, perturbed = split(
-        read(data / "authored144.jsonl"), read(data / "perturbations108.jsonl")
+        read_jsonl(data / "authored144.jsonl"), read_jsonl(data / "perturbations108.jsonl")
     )[which]
-    smoke = read("benchmarks/smoke.jsonl")
+    smoke = read_jsonl("benchmarks/smoke.jsonl")
     print(f"{which}: {len(base)} base rows, {len(perturbed)} perturbed rows, {len(smoke)} smoke")
     engine = Engine(SparkBackend.load("models/Spark-X2.5-4B", bits=8))
     for name in names:
