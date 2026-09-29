@@ -3,13 +3,17 @@
 The model loader and the web server are replaced by recording fakes: no network, GPU, real
 weights or llama.cpp runtime is needed."""
 
+import importlib
+import io
 import json
 import math
+import os
 import re
 import runpy
 import sys
 import threading
 from concurrent.futures import Future
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -189,6 +193,130 @@ def write_calibration(path, fingerprint="test-only", boolean=2.0, choice=4.0):
     )
     path.write_text(calibration.model_dump_json(), encoding="utf-8")
     return path
+
+
+# write_json ------------------------------------------------------------------------------------
+
+
+def test_write_json_leaves_nothing_behind_when_the_text_cannot_be_encoded(tmp_path):
+    target = tmp_path / "later" / "out.json"
+    with pytest.raises(UnicodeEncodeError):
+        cli.write_json({"id": "\ud800"}, target)  # JSON can spell a lone surrogate, UTF-8 cannot
+    assert not target.parent.exists()
+
+
+def ansi_console():
+    """A stdout as a Windows pipe presents it: text in the ANSI code page, over bytes."""
+    raw = io.BytesIO()
+    return raw, io.TextIOWrapper(raw, encoding="cp1252", newline="\n")
+
+
+def test_write_json_on_a_console_that_cannot_encode_the_text():
+    # A Windows pipe uses the ANSI code page, and the JSON keeps non-ASCII text as it is.
+    value = {"description": "\N{CHECK MARK} \N{CYRILLIC SMALL LETTER ZHE}"}
+    raw, console = ansi_console()
+    with redirect_stdout(console):
+        cli.write_json(value, None)
+    console.flush()
+    assert json.loads(raw.getvalue().decode("utf-8")) == value
+
+
+def test_write_json_emits_utf8_even_where_the_console_could_encode_the_text():
+    # cp1252 holds "è", but a reader of JSON expects UTF-8: the bytes must not be cp1252 ones.
+    raw, console = ansi_console()
+    with redirect_stdout(console):
+        cli.write_json({"name": "è già"}, None)
+    console.flush()
+    assert raw.getvalue() == '{\n  "name": "è già"\n}\n'.encode()
+
+
+def test_write_json_writes_the_same_bytes_to_a_file_where_text_files_get_crlf(
+    tmp_path, monkeypatch
+):
+    # Without newline=, a text file gets os.linesep for "\n": "\r\n" on Windows. Emulate that here,
+    # since nothing else in this test tells the platforms apart.
+    real_open = Path.open
+
+    def open_as_on_windows(self, mode="r", buffering=-1, encoding=None, errors=None, newline=None):
+        if "b" not in mode and newline is None:
+            newline = "\r\n"
+        return real_open(self, mode, buffering, encoding, errors, newline)
+
+    monkeypatch.setattr(Path, "open", open_as_on_windows)
+    value = {"name": "è ✓", "list": [1, 2]}
+    raw, console = ansi_console()
+    with redirect_stdout(console):
+        cli.write_json(value, None)
+    console.flush()
+    target = tmp_path / "report.json"
+    cli.write_json(value, target)
+    assert target.read_bytes() == raw.getvalue()  # the digest of a report is the same everywhere
+    assert b"\r" not in target.read_bytes()
+
+
+def test_write_json_writes_lf_whatever_the_platform_newline(tmp_path, monkeypatch):
+    """`write_json` opening the file without `newline="\\n"`, or with `newline=None`.
+
+    A text file then gets os.linesep for every "\\n": "\\r\\n" on Windows, where the report would
+    not hash as the LF blob that git keeps, so its line in results/SHA256SUMS could not be
+    checked. Linux and macOS cannot tell, so this makes the platform one that can: the C
+    implementation of `io` has the newline of the platform built in, the Python one asks os.
+    """
+    monkeypatch.setattr(os, "linesep", "\r\n")
+    monkeypatch.setattr(io, "open", importlib.import_module("_pyio").open)  # no stub for it
+    target = tmp_path / "report.json"
+    cli.write_json({"n": 1}, target)
+    assert target.read_bytes() == b'{\n  "n": 1\n}\n'
+
+
+def test_write_json_keeps_the_order_of_what_was_printed_around_it():
+    raw, console = ansi_console()  # buffers text until it is flushed
+    with redirect_stdout(console):
+        print("before")
+        cli.write_json({"n": 1}, None)
+        print("after")
+    console.flush()
+    assert raw.getvalue().decode("utf-8") == 'before\n{\n  "n": 1\n}\nafter\n'
+
+
+def test_write_json_flushes_the_result_at_once():
+    # A CUDA or Metal runtime can abort the process on its way out; the result must be out by then.
+    raw = io.BytesIO()
+    console = io.TextIOWrapper(io.BufferedWriter(raw, buffer_size=1 << 16), encoding="cp1252")
+    with redirect_stdout(console):
+        cli.write_json({"n": 1}, None)
+        assert raw.getvalue() == b'{\n  "n": 1\n}\n'
+
+
+def test_write_json_writes_text_to_a_stream_that_has_no_binary_side():
+    stream = io.StringIO()  # no `buffer`: there is no encoding to get wrong
+    with redirect_stdout(stream):
+        cli.write_json({"name": "è ✓"}, None)
+    assert stream.getvalue() == '{\n  "name": "è ✓"\n}\n'
+
+
+# calibrate -------------------------------------------------------------------------------------
+
+
+def calibration_rows(count=12):
+    return [
+        {"type": "boolean", "logits": [0, 8], "label_index": int(i % 2 == 0)} for i in range(count)
+    ]
+
+
+def test_calibrate_leaves_no_file_behind_for_a_fingerprint_utf8_cannot_encode(rizzo, tmp_path):
+    # Command-line bytes that are not UTF-8 reach Python as lone surrogates (surrogateescape).
+    source = write_jsonl(tmp_path / "rows.jsonl", calibration_rows())
+    target = tmp_path / "later" / "calibration.json"
+    (out, err), exit_ = rizzo.fail(
+        "calibrate", source, "--fingerprint", "fp\udcff", "--output", target
+    )
+    assert out == ""
+    assert err.startswith("rizzo: ")
+    assert isinstance(exit_.__cause__, UnicodeEncodeError)
+    assert not target.parent.exists()
+    rizzo.run("calibrate", source, "--fingerprint", "fp", "--output", target)  # still free
+    assert Calibration.from_file(target).fingerprint == "fp"
 
 
 # decide, evaluate, serve: loading the model ----------------------------------------------------

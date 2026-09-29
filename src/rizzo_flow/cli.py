@@ -21,13 +21,23 @@ from .loader import BACKENDS, DEVICES
 def write_json(value, destination):
     text = json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     if destination:
+        text.encode("utf-8")  # a lone surrogate fails here, before mkdir and "x" leave anything
         path = Path(destination)
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Results are create-only; never silently overwrite benchmark evidence.
-        with path.open("x", encoding="utf-8") as stream:
+        # Results are create-only; never silently overwrite benchmark evidence. newline="\n": the
+        # same bytes as on stdout and on every OS, which results/SHA256SUMS expects.
+        with path.open("x", encoding="utf-8", newline="\n") as stream:
             stream.write(text)
     else:
-        print(text, end="")
+        # JSON is UTF-8 whatever the console encoding is: a Windows pipe uses the ANSI code page,
+        # which fails on most scripts and would hand the rest to the reader as the wrong bytes.
+        binary = getattr(sys.stdout, "buffer", None)
+        if binary is None:  # a text-only stream (io.StringIO) has no encoding to get wrong
+            print(text, end="")
+        else:
+            sys.stdout.flush()  # what was printed as text goes out first
+            binary.write(text.encode("utf-8"))
+            binary.flush()
 
 
 def refuse_existing(destination):
