@@ -248,8 +248,11 @@ ottenuto ha lo **stesso sha256** di quello pubblicato, quindi i safetensors sono
 conversione). MLX-CUDA BF16 = llama.cpp BF16 entro 0.001 sul ticket, stessi `prompt_sha256`. Il fingerprint dei file
 fine-tuned ha la chiave in più `weights: "flow"` (quelli base restano invariati), l'ID servito è
 `rizzo-flow-4b-q8_0` (base: `rizzo-spark-x2.5-4b-q8_0`). `llama_release.fetch` accetta un token
-(`config.hf_token`: `HF_TOKEN`, `.env` nella cartella di lavoro, token di `hf auth login`),
-mandato solo al primo host e non nei redirect; 401/403/404 falliscono subito.
+(`config.hf_token`: `HF_TOKEN` — una variabile vuota o di soli spazi non è un token —, `.env` nella
+cartella di lavoro, token di `hf auth login`), mandato solo al primo host e non nei redirect;
+401/403/404 falliscono subito. Il `.env` lo legge `config.parse_dotenv` (prefisso `export`, virgolette,
+commento finale ` #`; UTF-8 con BOM e `errors="replace"`, così un commento in una code page o un file
+UTF-16 non fermano un download che non chiede token).
 typed-decisions test (`scripts/typed_decisions.py`, report in `results/local-typed-decisions/`,
 ignorati da git), stessa macchina RTX 5060 Ti, Q8_0: 4B 0.574 → **0.648** (+0.074 [+0.050,
 +0.101]), KL 2.90 → 0.45, Brier 0.480 → 0.205, ECE 0.349 → 0.112; 1.7B 0.530 → 0.544 (rumore),

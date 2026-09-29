@@ -1,4 +1,5 @@
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -254,17 +255,44 @@ def check_limits(batch_size: int, prefill_chunk: int) -> None:
         raise ValueError("batch_size must be 1–16 and prefill_chunk 1–2048")
 
 
+def parse_dotenv(text: str) -> list[tuple[str, str]]:
+    """KEY=VALUE lines in order: `export ` prefix, matching quotes and a trailing ` #` comment."""
+    pairs = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, found, value = line.removeprefix("export ").partition("=")
+        key = key.strip()
+        if not found or not key:
+            continue
+        value = value.strip()
+        end = value.find(value[0], 1) if value[:1] in ("'", '"') else -1
+        # What the quotes enclose, or the bare value without a trailing comment.
+        pairs.append(
+            (key, value[1:end] if end > 0 else re.split(r"\s#", value, maxsplit=1)[0].rstrip())
+        )
+    return pairs
+
+
 def hf_token() -> str | None:
     """Token for private Hugging Face repositories: HF_TOKEN, a .env file in the working
     directory, or the token saved by `hf auth login`."""
-    if token := os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN"):
-        return token.strip()
+    for name in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+        if token := os.environ.get(name, "").strip():  # a blank variable is no token either
+            return token
     dotenv = Path(".env")
     if dotenv.is_file():
-        for line in dotenv.read_text(encoding="utf-8").splitlines():
-            key, _, value = line.partition("=")
-            if key.strip() == "HF_TOKEN" and value.strip().strip("\"'"):
-                return value.strip().strip("\"'")
+        try:
+            # utf-8-sig: Notepad and PowerShell write a byte order mark, which must not hide the
+            # first key. replace: a comment in a code page must not cost the token beside it, and
+            # a UTF-16 file (a PowerShell redirect) must not stop a download that needs no token.
+            text = dotenv.read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:  # a file we may not read is not a reason to stop
+            text = ""
+        for key, value in parse_dotenv(text):
+            if key == "HF_TOKEN" and (token := value.strip().strip("\"'").strip()):
+                return token
     home = Path(os.environ.get("HF_HOME") or Path.home() / ".cache" / "huggingface")
     saved = home / "token"
     return saved.read_text(encoding="utf-8").strip() or None if saved.is_file() else None
