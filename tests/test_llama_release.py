@@ -555,3 +555,52 @@ def test_translation_is_a_macos_question_only(monkeypatch):
     monkeypatch.setattr(release.sys, "platform", "linux")
     monkeypatch.setattr(release, "host", lambda: ("linux", "x64"))
     assert release.translated() is False
+
+
+@pytest.fixture
+def served(runtimes, monkeypatch):
+    """Archives in a folder that stands in for the release page, published per family."""
+    folder = runtimes / "served"
+    folder.mkdir()
+    monkeypatch.setattr(release, "BASE_URL", folder.as_uri())
+    at(monkeypatch, "win32", "x64")
+
+    def publish(family, *archives):
+        packages = []
+        for name, members in archives:
+            archive_zip(folder / name, members)
+            packages.append((name, release.sha256_file(folder / name)))
+        release.PACKAGES[("win32", "x64", family)] = packages
+
+    monkeypatch.setattr(release, "PACKAGES", {})
+    return publish
+
+
+def test_install_returns_the_directory_that_holds_the_library(served):
+    served("cpu", ("cpu.zip", {f"bin/{LIBRARY}": b"lib", "bin/ggml.dll": b"g"}))
+    assert release.install("cpu") == release.install_dir("cpu") / "bin"
+    assert release.install("cpu") == release.install_dir("cpu") / "bin"  # and when it is found
+
+
+def test_a_runtime_that_lost_its_library_is_replaced_by_the_next_install(served):
+    served("cpu", ("v1.zip", {LIBRARY: b"lib-v1", "ggml.dll": b"ggml-v1"}))
+    directory = release.install("cpu")
+    (directory / LIBRARY).unlink()  # antivirus quarantine, partial delete: the rest stays
+    assert release.installed() == []
+    served("cpu", ("v2.zip", {LIBRARY: b"lib-v2", "ggml.dll": b"ggml-v2"}))
+    assert release.install("cpu") == directory
+    assert release.installed() == ["cpu"]
+    assert (directory / LIBRARY).read_bytes() == b"lib-v2"
+    assert (directory / "ggml.dll").read_bytes() == b"ggml-v2"
+    assert not directory.with_name(directory.name + ".partial").exists()
+
+
+def test_a_bad_package_never_destroys_the_damaged_runtime_it_was_meant_to_repair(served):
+    served("cpu", ("v1.zip", {LIBRARY: b"lib-v1", "ggml.dll": b"ggml-v1"}))
+    directory = release.install("cpu")
+    (directory / LIBRARY).unlink()
+    served("cpu", ("empty.zip", {"README.txt": b"nothing useful"}))
+    with pytest.raises(ValueError, match=rf"^{re.escape(LIBRARY)} not found in the cpu package$"):
+        release.install("cpu")
+    # Refused before anything was removed.
+    assert (directory / "ggml.dll").read_bytes() == b"ggml-v1"

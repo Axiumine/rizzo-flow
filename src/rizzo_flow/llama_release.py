@@ -384,5 +384,6 @@ def install(accelerator: str = "auto", progress=None) -> Path:
         unpack(archive, staging)
     if find_library(staging) is None:
         raise ValueError(f"{library_name()} not found in the {accelerator} package")
+    shutil.rmtree(directory, ignore_errors=True)  # what an install that lost its library left
     staging.replace(directory)
     return find_library(directory).parent
