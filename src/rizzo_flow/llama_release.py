@@ -315,6 +315,7 @@ def fetch(
                 failure = f"connection closed at {done} of {total} bytes"
                 continue
         except urllib.error.HTTPError as error:
+            error.close()  # nobody reads the body of an error response: let go of its connection
             if error.code in (401, 403, 404):  # retrying will not help
                 hint = (
                     "the repository is private or gated: set HF_TOKEN (environment or .env) "

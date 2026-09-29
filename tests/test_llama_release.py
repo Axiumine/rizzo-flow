@@ -284,9 +284,14 @@ class Response:
         self._stream.close()
 
 
-def http_error(code, reason="Nope"):
+def http_error(code, reason="Nope", body=None):
+    # With a body: older Pythons leave an HTTPError without one half initialized.
     return urllib.error.HTTPError(
-        "https://example.test/file", code, reason, email.message.Message(), io.BytesIO()
+        "https://example.test/file",
+        code,
+        reason,
+        email.message.Message(),
+        io.BytesIO() if body is None else body,
     )
 
 
@@ -307,6 +312,29 @@ def range_server(monkeypatch, payload):
 
     monkeypatch.setattr(release.urllib.request, "urlopen", urlopen)
     return ranges
+
+
+@pytest.mark.parametrize(("code", "denied"), [(503, False), (416, False), (404, True)])
+def test_the_connection_of_an_error_response_is_let_go_whatever_fetch_does_next(
+    tmp_path, monkeypatch, code, denied
+):
+    """An HTTPError is also a file over the response: nobody reads it, so `fetch` closes it."""
+    body = io.BytesIO(b"<html>an error page nobody reads</html>")
+    replies = iter([http_error(code, body=body), Response(PAYLOAD)])
+
+    def urlopen(request, timeout=None):
+        reply = next(replies)
+        if isinstance(reply, BaseException):
+            raise reply
+        return reply
+
+    monkeypatch.setattr(release.urllib.request, "urlopen", urlopen)
+    if denied:
+        with pytest.raises(ValueError, match=rf"HTTP {code}"):
+            release.fetch(GITHUB, tmp_path / "model.gguf", DIGEST)
+    else:  # retried
+        release.fetch(GITHUB, tmp_path / "model.gguf", DIGEST)
+    assert body.closed
 
 
 def test_a_complete_partial_file_left_by_an_interrupted_run_is_accepted(tmp_path, monkeypatch):
