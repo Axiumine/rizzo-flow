@@ -208,7 +208,9 @@ sulla pagina vanno tenuti allineati a README e `results/`.
   (`results/local-*` è ignorato). `results/SHA256SUMS` copre i report storici. `cli.refuse_existing`
   rifiuta un `--output` esistente, anche un symlink pendente, prima di caricare il modello
   (`scripts/typed_decisions.py` la chiama); `decide` e `evaluate` creano prima del caricamento anche
-  la cartella del report.
+  la cartella del report, e `evaluate` valida prima le fixture (`evaluation.check_fixtures` e
+  `check_requests`: oggetti, `id` e `request`, target numerici finiti e ≤ 1e100, domande ed etichette
+  attese che esistono, lone surrogate, NaN) e `--calibration`.
 - **Niente troncamento silenzioso.** Input oltre i limiti → `ValueError` → HTTP 422. Un fallimento del
   modello su una richiesta valida è un altro caso: `BackendError` → HTTP 503.
 - **Non ottimizzare sul test.** Le fixture proprie (`benchmarks/smoke.jsonl`) sono già state usate

@@ -325,10 +325,10 @@ selettiva contro l'intero vocabolario, isolamento delle cache, confini sliding-w
 lunghezze diverse e quantizzazione. Il validatore usa invece i pesi 4B reali, API, fixture e stato lungo.
 
 Gli output sono **create-only**: un `--output` già esistente (anche un symlink pendente) viene rifiutato
-prima di caricare il modello. I report conservano distribuzioni, logit, hash dei prompt,
-hash dei pesi/tokenizer, revisioni, tempi sincronizzati GPU e memoria (`peak_device_bytes` con
-llama.cpp: calo della memoria libera della GPU da prima del caricamento, quindi include gli altri
-processi; `peak_mlx_bytes` con MLX). Il caricamento
+prima di caricare il modello, insieme alle fixture non valide. I report conservano distribuzioni,
+logit, hash dei prompt, hash dei pesi/tokenizer, revisioni, tempi sincronizzati GPU e memoria
+(`peak_device_bytes` con llama.cpp: calo della memoria libera della GPU da prima del caricamento,
+quindi include gli altri processi; `peak_mlx_bytes` con MLX). Il caricamento
 e il warmup sono esclusi dai benchmark; tempi di compilazione e inferenza sono separati.
 La memoria MLX non coincide con l'intera memoria del processo.
 

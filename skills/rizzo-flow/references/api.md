@@ -165,7 +165,7 @@ ASCII, the server refuses to start with another).
 ```bash
 uv run rizzo decide request.json [--output out.json]   # one request, loads the model itself; --output must not exist yet
 uv run rizzo schema [--response]                       # JSON Schema of request/response
-uv run rizzo evaluate cases.jsonl                      # accuracy/NLL/Brier/ECE on labelled cases
+uv run rizzo evaluate cases.jsonl                      # accuracy/NLL/Brier/ECE on labelled cases; validates the file before loading the model
 uv run rizzo calibrate rows.jsonl --fingerprint <fp> --output fit.json
 uv run rizzo serve --calibration fit.json              # serve with temperature scaling
 ```

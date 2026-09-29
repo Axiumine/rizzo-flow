@@ -182,14 +182,21 @@ def main():
         from .calibration import Calibration
         from .engine import Engine
 
-        # Validate the request, and that --output is free and can be created, before loading
-        # gigabytes of weights.
+        # Validate the input and --calibration, and that --output is free and can be created,
+        # before loading gigabytes of weights.
         if args.command != "serve":
             refuse_existing(args.output)
         if args.command == "decide":
             from .schema import Request
 
             request = Request.model_validate_json(args.input.read_text(encoding="utf-8"))
+        elif args.command == "evaluate":
+            from .evaluation import check_fixtures, check_requests
+
+            fixtures = read_jsonl(args.input)
+            check_fixtures(fixtures, args.repeats)
+            check_requests(fixtures)
+        calibration = Calibration.from_file(args.calibration) if args.calibration else None
         if args.command != "serve" and args.output:
             # A folder that cannot be made is found now, not when the report is written.
             Path(args.output).parent.mkdir(parents=True, exist_ok=True)
@@ -213,7 +220,6 @@ def main():
             threads=args.threads,
             kv_type=args.kv_type,
         )
-        calibration = Calibration.from_file(args.calibration) if args.calibration else None
         engine = Engine(backend, ctx=args.ctx, calibration=calibration)
         try:
             if args.command == "decide":
@@ -222,8 +228,7 @@ def main():
                 from .evaluation import evaluate
 
                 write_json(
-                    evaluate(engine, read_jsonl(args.input), args.repeats, args.compare_modes),
-                    args.output,
+                    evaluate(engine, fixtures, args.repeats, args.compare_modes), args.output
                 )
             elif args.command == "serve":
                 import uvicorn

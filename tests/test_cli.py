@@ -4,6 +4,8 @@ The model loader and the web server are replaced by recording fakes: no network,
 weights or llama.cpp runtime is needed."""
 
 import json
+import math
+import re
 import runpy
 import sys
 from pathlib import Path
@@ -14,6 +16,7 @@ import uvicorn
 from test_service import FakeBackend
 
 from rizzo_flow import cli, loader
+from rizzo_flow.calibration import Calibration
 
 
 class ClosableBackend(FakeBackend):
@@ -145,11 +148,231 @@ def fixtures_file(tmp_path, fixtures):
 
 @pytest.fixture
 def commands(request_file, fixtures_file):
-    """The commands that write a result, each with the arguments it cannot do without."""
+    """The three commands that load a model, each with the arguments it cannot do without."""
     return {
         "decide": ["decide", request_file],
         "evaluate": ["evaluate", fixtures_file],
+        "serve": ["serve"],
     }
+
+
+def write_calibration(path, fingerprint="test-only", boolean=2.0, choice=4.0):
+    calibration = Calibration(
+        fingerprint=fingerprint,
+        dataset_sha256="0" * 64,
+        temperatures={"boolean": boolean, "choice": choice},
+        fit_metrics={},
+    )
+    path.write_text(calibration.model_dump_json(), encoding="utf-8")
+    return path
+
+
+# decide, evaluate, serve: loading the model ----------------------------------------------------
+
+
+@pytest.fixture(params=["mismatch", "ctx"])
+def bad_setup(request, tmp_path):
+    """Flags that parse but fail once the model is loaded, while the engine is being set up,
+    with the error each one raises."""
+    if request.param == "mismatch":
+        calibration = write_calibration(tmp_path / "calibration.json", fingerprint="another-model")
+        return ["--calibration", calibration], "fitted for a different model/runtime/prompt"
+    return ["--ctx", "0"], "ctx must be positive"
+
+
+@pytest.fixture(params=["missing", "invalid"])
+def bad_calibration(request, tmp_path):
+    """A --calibration file that cannot be used, with the error it raises."""
+    if request.param == "missing":
+        return tmp_path / "missing-calibration.json", "missing-calibration.json"
+    calibration = tmp_path / "calibration.json"
+    calibration.write_text('{"fingerprint": 3}', encoding="utf-8")
+    return calibration, "validation error"
+
+
+def test_setup_errors_after_the_load_are_one_line(rizzo, loaded, request_file, bad_setup):
+    flags, message = bad_setup
+    (out, err), _ = rizzo.fail("decide", request_file, *flags)
+    assert out == ""
+    assert err.startswith("rizzo: ")
+    assert message in err
+
+
+@pytest.mark.parametrize("command", ["decide", "evaluate", "serve"])
+def test_a_calibration_file_that_cannot_be_read_fails_before_the_model_is_loaded(
+    rizzo, loaded, served, commands, bad_calibration, command
+):
+    path, message = bad_calibration
+    (out, err), _ = rizzo.fail(*commands[command], "--calibration", path)
+    assert out == ""
+    assert err.startswith("rizzo: ")
+    assert message in err
+    assert loaded.calls == []
+    assert served.runs == []
+
+
+# evaluate --------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("argv", "content", "message"),
+    [
+        (["--repeats", "0"], None, "Provide fixtures and at least one repetition"),
+        (["--repeats", "-2"], None, "Provide fixtures and at least one repetition"),
+        ([], "", "Provide fixtures and at least one repetition"),
+        ([], "\n  \n", "Provide fixtures and at least one repetition"),
+        ([], "not json\n", "Expecting value"),
+    ],
+)
+def test_evaluate_reports_unusable_fixtures_before_loading_the_weights(
+    rizzo, loaded, fixtures_file, tmp_path, argv, content, message
+):
+    path = fixtures_file
+    if content is not None:
+        path = tmp_path / "other.jsonl"
+        path.write_text(content, encoding="utf-8")
+    (out, err), _ = rizzo.fail("evaluate", path, *argv)
+    assert out == ""
+    assert err.startswith(f"rizzo: {message}")
+    assert err.endswith("\n")
+    assert loaded.calls == []
+
+
+NOT_AN_OBJECT = "is not a JSON object"
+
+
+@pytest.mark.parametrize(
+    ("row", "message"),
+    [
+        ({"id": "x"}, 'Fixture 2 has no "request"'),
+        ({"request": {}}, 'Fixture 2 has no "id"'),
+        ({}, 'Fixture 2 has no "id"'),
+        ([1], f"Fixture 2 {NOT_AN_OBJECT}"),
+        ("text", f"Fixture 2 {NOT_AN_OBJECT}"),
+        (None, f"Fixture 2 {NOT_AN_OBJECT}"),
+        ({"id": "x", "request": "text"}, f'Fixture 2: "request" {NOT_AN_OBJECT}'),
+        ({"id": "x", "request": None}, f'Fixture 2: "request" {NOT_AN_OBJECT}'),
+        ({"id": "x", "request": {}, "expected": None}, f'Fixture 2: "expected" {NOT_AN_OBJECT}'),
+        ({"id": "x", "request": {}, "expected": [1]}, f'Fixture 2: "expected" {NOT_AN_OBJECT}'),
+        (
+            {"id": "x", "request": {}, "expected": {"route": "access"}},
+            f"Fixture 2: expected route {NOT_AN_OBJECT}",
+        ),
+        (
+            {"id": "x", "request": {}, "expected": {"route": {"label": "access"}, "next": []}},
+            f"Fixture 2: expected next {NOT_AN_OBJECT}",
+        ),
+    ],
+)
+def test_evaluate_reports_a_malformed_fixture_as_an_error(
+    rizzo, loaded, tmp_path, fixtures, row, message
+):
+    # The second record is the bad one: every fixture is checked, not only the first.
+    path = write_jsonl(tmp_path / "bad.jsonl", [fixtures[0], row])
+    (out, err), exit_ = rizzo.fail("evaluate", path)
+    assert (out, err) == ("", f"rizzo: {message}\n")
+    assert isinstance(exit_.__cause__, ValueError)
+    assert loaded.calls == []
+
+
+def test_evaluate_validates_every_request_before_loading_the_weights(
+    rizzo, loaded, tmp_path, fixtures
+):
+    broken = {"id": "broken", "request": {"state": "x", "questions": {}}, "expected": {}}
+    path = write_jsonl(tmp_path / "bad.jsonl", [fixtures[0], broken])
+    (out, err), exit_ = rizzo.fail("evaluate", path)
+    assert out == ""
+    assert err.startswith("rizzo: Fixture broken: ")
+    assert "questions" in err
+    assert isinstance(exit_.__cause__, ValueError)
+    assert loaded.calls == []
+
+
+@pytest.mark.parametrize(
+    ("expected", "message"),
+    [
+        ({"route": {"label": "nope"}}, "Unknown expected label nope in fixture odd"),
+        ({"route": {"label": 3}}, "Unknown expected label 3 in fixture odd"),
+        # A JSON list or object is not hashable: still an unknown label, not a TypeError.
+        ({"route": {"label": ["access"]}}, "Unknown expected label ['access'] in fixture odd"),
+        ({"route": {"label": {"a": 1}}}, "Unknown expected label {'a': 1} in fixture odd"),
+        ({"billing": {"label": "true"}}, "Unknown expected question billing in fixture odd"),
+        ({"billing": {"status": "ok"}}, "Unknown expected question billing in fixture odd"),
+        ({"route": {"value": "12"}}, "Expected numeric targets must be finite"),
+        ({"route": {"value": [1]}}, "Expected numeric targets must be finite"),
+        ({"route": {"value": 10**400}}, "Expected numeric targets must be finite"),
+        ({"route": {"value": 1e101}}, "Expected numeric targets must be finite"),
+        ({"route": {"value": math.nan}}, "Expected numeric targets must be finite"),
+    ],
+)
+def test_evaluate_refuses_expectations_it_could_not_score_before_loading_the_weights(
+    rizzo, loaded, tmp_path, fixtures, expected, message
+):
+    # The last fixture is the bad one: it used to fail after every decision of the others.
+    odd = {"id": "odd", "request": fixtures[0]["request"], "expected": expected}
+    path = write_jsonl(tmp_path / "odd.jsonl", [fixtures[0], odd])
+    (out, err), exit_ = rizzo.fail("evaluate", path)
+    assert (out, err) == ("", f"rizzo: {message}\n")
+    assert isinstance(exit_.__cause__, ValueError)
+    assert loaded.calls == []
+
+
+def fixtures_as_ascii(path, rows):
+    """A JSON Lines file whose lone surrogates are written as escapes, as JSON allows."""
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize(
+    "spoil",
+    [
+        lambda row: {**row, "id": "odd\ud800"},
+        lambda row: {**row, "expected": {"route": {"label": "access\ud800"}}},
+        lambda row: {**row, "expected": {"route\ud800": {"label": "access"}}},
+        lambda row: {**row, "request": {**row["request"], "state": "odd\ud800"}},
+    ],
+    ids=["id", "expected-label", "expected-question", "request-state"],
+)
+def test_evaluate_refuses_text_utf8_cannot_encode_before_loading_the_weights(
+    rizzo, loaded, tmp_path, fixtures, spoil
+):
+    # It used to fail after the last decision, when the report was hashed: nothing was kept.
+    path = fixtures_as_ascii(tmp_path / "odd.jsonl", [fixtures[0], spoil(fixtures[0])])
+    (out, err), exit_ = rizzo.fail("evaluate", path)
+    assert out == ""
+    assert err.startswith("rizzo: Fixture 2: Strings must be valid Unicode text")
+    assert isinstance(exit_.__cause__, ValueError)
+    assert loaded.calls == []
+
+
+def test_evaluate_refuses_nan_in_a_fixture_before_loading_the_weights(
+    rizzo, loaded, tmp_path, fixtures
+):
+    # json.loads takes NaN and Infinity, and the hash of the report cannot: the run used to end
+    # there, after the last decision.
+    odd = {
+        "id": "odd",
+        "request": fixtures[0]["request"],
+        "expected": {"route": {"note": math.nan}},
+    }
+    path = write_jsonl(tmp_path / "odd.jsonl", [fixtures[0], odd])
+    (out, err), exit_ = rizzo.fail("evaluate", path)
+    assert out == ""
+    assert re.match(r"rizzo: Fixture 2: .*not JSON compliant", err)
+    assert isinstance(exit_.__cause__, ValueError)
+    assert loaded.calls == []
+
+
+@pytest.mark.parametrize("content", [None, "not json\n"])
+def test_evaluate_reads_its_fixtures_before_loading_the_weights(rizzo, loaded, tmp_path, content):
+    path = tmp_path / "fixtures.jsonl"
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+    (out, err), exit_ = rizzo.fail("evaluate", path)
+    assert out == ""
+    assert err.startswith("rizzo: ")
+    assert isinstance(exit_.__cause__, (FileNotFoundError, json.JSONDecodeError))
+    assert loaded.calls == []
 
 
 # create-only results ---------------------------------------------------------------------------

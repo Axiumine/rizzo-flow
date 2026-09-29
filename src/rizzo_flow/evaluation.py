@@ -5,12 +5,72 @@ import hashlib
 import math
 import statistics
 
+from .decisions import candidates
 from .prompts import canonical
+from .schema import Request, require_unicode
+
+
+def is_object(value):
+    """A JSON object, which `json.loads` reads as a dict."""
+    return isinstance(value, dict)
+
+
+def check_fixtures(fixtures, repeats=1):
+    """Refuse what `evaluate` cannot use, so a benchmark fails before it starts, not half way."""
+    if not fixtures or repeats < 1:
+        raise ValueError("Provide fixtures and at least one repetition")
+    for position, fixture in enumerate(fixtures, 1):
+        if not is_object(fixture):
+            raise ValueError(f"Fixture {position} is not a JSON object")
+        for field in ("id", "request"):
+            if field not in fixture:
+                raise ValueError(f'Fixture {position} has no "{field}"')
+        if not is_object(fixture["request"]):
+            raise ValueError(f'Fixture {position}: "request" is not a JSON object')
+        expected = fixture.get("expected", {})
+        if not is_object(expected):
+            raise ValueError(f'Fixture {position}: "expected" is not a JSON object')
+        for question, item in expected.items():
+            if not is_object(item):
+                raise ValueError(f"Fixture {position}: expected {question} is not a JSON object")
+            # Within the bound of the anchors: an int beyond a float does not even convert, and
+            # a target of 1e200 would overflow the squared errors of the report.
+            if "value" in item and not (
+                isinstance(item["value"], (int, float)) and abs(item["value"]) <= 1e100
+            ):
+                raise ValueError("Expected numeric targets must be finite")
+    for position, fixture in enumerate(fixtures, 1):
+        try:
+            # The id and the expectations reach the report and its hash, which text that UTF-8
+            # cannot encode, and NaN and Infinity (json.loads takes them), would fail at the end.
+            require_unicode(fixture)
+            canonical(fixture)
+        except ValueError as error:
+            raise ValueError(f"Fixture {position}: {error}") from None
+
+
+def check_requests(fixtures):
+    """Refuse a fixture whose request the engine would refuse, or that expects a question or a
+    label its request does not have; `fixtures` passed check_fixtures."""
+    for fixture in fixtures:
+        try:
+            request = Request.model_validate(fixture["request"])
+        except ValueError as error:
+            raise ValueError(f"Fixture {fixture['id']}: {error}") from error
+        for key, expected in fixture.get("expected", {}).items():
+            if key not in request.questions:
+                raise ValueError(f"Unknown expected question {key} in fixture {fixture['id']}")
+            if "label" in expected:
+                # A list, not a set: a JSON list or object as label is not hashable.
+                labels = [candidate.id for candidate in candidates(request.questions[key])]
+                if expected["label"] not in labels:
+                    raise ValueError(
+                        f"Unknown expected label {expected['label']} in fixture {fixture['id']}"
+                    )
 
 
 def evaluate(engine, fixtures: list[dict], repeats=1, compare_modes=False):
-    if not fixtures or repeats < 1:
-        raise ValueError("Provide fixtures and at least one repetition")
+    check_fixtures(fixtures, repeats)
     # Explicit warmup is excluded from reported timings.
     engine.decide(fixtures[0]["request"])
     rows, latencies = [], []
@@ -33,6 +93,8 @@ def evaluate(engine, fixtures: list[dict], repeats=1, compare_modes=False):
             "repeat_timings": [r["timing"] for r in responses],
         }
         for key, expected in fixture.get("expected", {}).items():
+            if key not in response["answers"]:
+                raise ValueError(f"Unknown expected question {key} in fixture {fixture['id']}")
             answer = response["answers"][key]
             is_accepted = answer["status"] == "ok"
             accepted.append(is_accepted)
@@ -55,8 +117,6 @@ def evaluate(engine, fixtures: list[dict], repeats=1, compare_modes=False):
                 )
             if "value" in expected:
                 target = expected["value"]
-                if not isinstance(target, (int, float)) or not math.isfinite(target):
-                    raise ValueError("Expected numeric targets must be finite")
                 value = answer.get("value", answer.get("score"))
                 group = canonical(
                     {
