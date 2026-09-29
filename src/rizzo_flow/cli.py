@@ -57,6 +57,17 @@ def read_jsonl(path):
     return [json.loads(line) for line in text.split("\n") if line.strip()]
 
 
+def port(value):
+    """A TCP port for --port: 0-65535, all of which uvicorn binds (0 = the system picks one)."""
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}") from None
+    if not 0 <= number <= 65535:
+        raise argparse.ArgumentTypeError(f"{number} is not a port, use 0-65535")
+    return number
+
+
 def progress(name, done, total):
     """One carriage-returned line per file; silent when stderr is not a terminal."""
     if sys.stderr.isatty():
@@ -67,7 +78,11 @@ def progress(name, done, total):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Rizzo Flow — local Spark typed decisions")
+    # Named, not taken from sys.argv: Python 3.14 calls a script that runs from an archive, as the
+    # console scripts of Windows do, `python.exe <path>`, in every usage line and error message.
+    parser = argparse.ArgumentParser(
+        prog="rizzo", description="Rizzo Flow — local Spark typed decisions"
+    )
     commands = parser.add_subparsers(dest="command", required=True)
     download = commands.add_parser(
         "download", help="Download the pinned llama.cpp runtime for this machine and the weights"
@@ -138,7 +153,7 @@ def main():
         p.add_argument("--calibration", type=Path)
         if name == "serve":
             p.add_argument("--host", default="127.0.0.1")
-            p.add_argument("--port", type=int, default=8017)
+            p.add_argument("--port", type=port, default=8017)
         else:
             p.add_argument("input", type=Path)
             p.add_argument("--output")

@@ -3,6 +3,7 @@
 The model loader and the web server are replaced by recording fakes: no network, GPU, real
 weights or llama.cpp runtime is needed."""
 
+import argparse
 import importlib
 import io
 import json
@@ -14,8 +15,9 @@ import sys
 import threading
 from concurrent.futures import Future
 from contextlib import redirect_stdout
+from importlib.machinery import ModuleSpec
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 import uvicorn
@@ -798,6 +800,59 @@ def test_the_engine_of_the_served_app_is_closed_when_the_server_stops(
     [(app, _)] = served.runs
     with TestClient(app) as client, pytest.raises(RuntimeError, match="The engine is closed"):
         client.post("/v1/decisions", json=payload)
+
+
+@pytest.mark.parametrize("value", ["65536", "70000", "-1", "99999999999999999999"])
+def test_an_out_of_range_port_is_an_error_message_not_a_traceback(rizzo, loaded, served, value):
+    def bind(app, options):
+        raise OverflowError("bind(): port must be 0-65535.")  # what uvicorn.run raises
+
+    served.hook = bind
+    (out, err), _ = rizzo.fail("serve", f"--port={value}", code=2)
+    assert out == ""
+    assert err.startswith("usage: rizzo serve")
+    assert f"argument --port: {value} is not a port, use 0-65535" in err
+    assert (loaded.calls, served.runs) == ([], [])  # refused before the weights were loaded
+
+
+def test_a_port_that_is_not_a_number_is_a_usage_error_too(rizzo, loaded, served):
+    (out, err), _ = rizzo.fail("serve", "--port", "http", code=2)
+    assert out == ""
+    assert err.startswith("usage: rizzo serve")
+    assert "argument --port: invalid int value: 'http'" in err
+    assert (loaded.calls, served.runs) == ([], [])
+
+
+def test_usage_and_errors_name_the_program_rizzo_however_python_was_started(
+    rizzo, loaded, monkeypatch, tmp_path
+):
+    """Python 3.14 names a script that runs from an archive `python.exe <path>`: that is what
+    rizzo.exe is on Windows, and its usage line read "usage: python.exe C:\\...\\rizzo.exe serve"."""
+    archive = ModuleType("__main__")
+    archive.__spec__ = ModuleSpec("__main__", None)
+    monkeypatch.setitem(sys.modules, "__main__", archive)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
+    (out, err), _ = rizzo.fail("serve", "--port", "http", code=2)
+    assert out == ""
+    assert err.startswith("usage: rizzo serve [-h]")
+    assert "\nrizzo serve: error: argument --port: invalid int value: 'http'\n" in err
+
+
+@pytest.mark.parametrize("value", [0, 1, 65535])
+def test_the_ends_of_the_port_range_reach_uvicorn(rizzo, loaded, served, value):
+    rizzo.run("serve", "--port", value)  # 0: the system picks a free port, which uvicorn reports
+    assert [options["port"] for _, options in served.runs] == [value]
+
+
+@pytest.mark.parametrize(
+    "number", [-(10**30), -65536, -1, 0, 1, 1023, 8017, 65535, 65536, 65537, 10**30]
+)
+def test_port_accepts_exactly_the_numbers_a_socket_binds(number):
+    if 0 <= number <= 65535:
+        assert cli.port(str(number)) == number
+    else:
+        with pytest.raises(argparse.ArgumentTypeError, match="is not a port"):
+            cli.port(str(number))
 
 
 def test_serve_refuses_a_key_that_is_not_ascii_before_it_loads_the_model(
