@@ -64,6 +64,7 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python }}
       - run: uv sync --locked --extra test --extra ${{ matrix.mlx }}
-      # No weights, no network, no GPU: the tests use fakes (and a tiny model for MLX). No -q: the
-      # header of the run has the seed of the random order (--randomly-seed=N repeats it).
-      - run: uv run --no-sync pytest
+      # No weights, no network, no GPU: the tests use fakes (and a tiny model for MLX). --cov
+      # fails the run below 100% of the lines and branches of src/rizzo_flow. No -q: the header
+      # of the run has the seed of the random order (--randomly-seed=N repeats it).
+      - run: uv run --no-sync pytest --cov
