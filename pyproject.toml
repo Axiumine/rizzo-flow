@@ -39,7 +39,8 @@ cpu = [
   "huggingface-hub>=1.0",  # config.download_model imports it directly
   "spark-mlx-llm @ git+https://github.com/XHToken/Spark-MLX-LLM.git@de2b4379fa1e2f2e1f99d84c83f0e008f651d86c",
 ]
-# Development: tests (random order), linter, formatter, type checker, dependency checker.
+# Development: tests (random order), linter, formatter, type checker, dependency checker, mutation
+# testing.
 test = [
   "pytest>=8.4,<10",
   "httpx>=0.28,<1",
@@ -47,6 +48,7 @@ test = [
   "pytest-randomly>=5.0",
   "pytest-timeout>=2.4",
   "mypy>=2.3",
+  "mutmut>=3.8",
   "deptry>=0.25",
 ]
 
@@ -88,7 +90,7 @@ markers = ["mlx: small real Spark architecture tests; requires MLX", "integratio
 line-length = 100
 # training/ is left out for now: it has 16 findings of the rules below (S310, S311, B905,
 # PERF401, E731) that have to be settled before it can be checked.
-extend-exclude = ["results", ".research", "models", "runtimes", "training"]
+extend-exclude = ["results", ".research", "models", "runtimes", "training", "mutants"]
 
 [tool.ruff.lint]
 # Ruff's defaults (E4, E7, E9, F) plus the families that catch bugs, insecure calls and
@@ -144,3 +146,23 @@ package_module_name_map = { spark-mlx-llm = "spark_mlx_llm" }
 [tool.deptry.per_rule_ignores]
 # Installed for the MLX runtime, imported by spark-mlx-llm and mlx rather than by this package.
 DEP002 = ["mlx-lm", "mlx-cuda-13", "mlx-cpu"]
+
+[tool.mutmut]
+# Mutation testing, by hand: `uv run --no-sync mutmut run`, a few minutes on a machine with many
+# cores. mutmut edits the code one place at a time and runs the tests that reach that function, in
+# mutants/ (git-ignored), where it copies src/, tests/ and this file. `mutmut results` lists the
+# edits the tests let through, `mutmut show NAME` and `mutmut browse` show them as diffs. Verdicts
+# are cached per function: after editing tests, retest with `mutmut run 'rizzo_flow.<module>.*'`,
+# or delete mutants/.
+# What survives once tests/test_mutation_<module>.py are in place are edits that no test can tell
+# from the original, such as "UTF-8" for "utf-8", `zip(strict=True)` over lists that are equally
+# long by construction, or a header name in capitals that urllib capitalizes anyway.
+source_paths = ["src"]
+# What the tests read from the repository root (they run from mutants/).
+also_copy = ["request.schema.json", "response.schema.json", "scripts", "skills"]
+# Fixed order and no cache: a verdict must not depend on which mutant ran before.
+pytest_add_cli_args = ["-p", "no:randomly", "-p", "no:cacheprovider"]
+# The MLX tests start threads that do not survive a plain fork: the tests of the backends hang in
+# the forked mutant and every one of those mutants times out. The fork server imports the tests
+# once, then forks each mutant from there.
+process_isolation = "forkserver"
