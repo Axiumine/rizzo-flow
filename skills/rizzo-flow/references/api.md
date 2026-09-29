@@ -15,6 +15,8 @@ concurrent requests are queued and run one at a time (parallelism is *inside* a 
 ## Native: `POST /v1/decisions`
 
 All objects are **strict**: unknown fields → 422, types are not coerced (`"true"` is not `true`).
+Send `Content-Type: application/json`: a body without it is a 422. The bundled client sets it; `curl -d`
+and a bare `urllib` request do not, so add the header (`curl -H 'Content-Type: application/json'`).
 
 ### Request
 
@@ -152,7 +154,7 @@ Same shape as the public TypeSafe API (<https://docs.typesafe.ai/api>). Optional
 
 | Code | When |
 | --- | --- |
-| 422 | schema violation, too many options, state over 256 KB, prompt over `--ctx` tokens. Body `detail` says which. Nothing is truncated. |
+| 422 | schema violation, too many options, state over 256 KB, prompt over `--ctx` tokens. Body `detail` says which. Nothing is truncated. A body sent without `Content-Type: application/json` is a 422 too (`curl -d` alone sends a form); `detail` then reads "Input should be a valid dictionary or object to extract fields from". |
 | 401 | `/v1/systemone`, `/v1/models`: API key configured and bearer missing/wrong |
 | 400 | `/v1/systemone`: `model` is not `rizzo-latest`, the served id or `jev-*` |
 

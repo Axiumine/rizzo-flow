@@ -149,6 +149,11 @@ richieste HTTP concorrenti sono serializzate; il parallelismo è *dentro* la ric
   ignorano campi extra). Bearer auth solo se è impostata `RIZZO_API_KEY`. Pensato per funzionare
   con gli SDK ufficiali via `TYPESAFE_BASE_URL=http://127.0.0.1:8017` (non ancora provato con
   l'SDK reale).
+- **Corpo JSON** (entrambi gli endpoint). Un corpo senza `Content-Type` JSON è un 422 (`fastapi>=0.132`,
+  `strict_content_type`, attivo di default da quella versione): prima, un corpo senza alcun
+  `Content-Type` veniva letto come JSON, ed è ciò che una pagina di un altro sito può mandare all'API
+  locale senza preflight CORS. Anche `curl -d` senza `-H 'Content-Type: application/json'` è un 422:
+  manda un form.
 - `GET /playground` (`playground.html`, pagina singola senza dipendenze esterne, servita dal
   package): builder noul/choice/score, esempi, editor JSON per entrambi gli endpoint, barre di
   probabilità, metriche (round-trip, inferenza, prefill, microbatch, token in cache), cURL.

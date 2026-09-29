@@ -439,8 +439,9 @@ the real SDK). **The interface is compatible, the model is not Jev:**
 - **At most 26 options per `choice`** (the hosted API documents 255): every option is one answer
   letter. Beyond that, split the question into two stages.
 - `x_rizzo` (timings, fingerprint) is an extension outside the contract.
-- Bearer auth like the original, enforced only if `RIZZO_API_KEY` is set. Errors: 401, 422, and
-  400 (`{"error_type": "api_usage_error"}`) for a model name this server does not answer for.
+- Bearer auth like the original, enforced only if `RIZZO_API_KEY` is set. Errors: 401, 422 (invalid
+  request, over a limit, or a body sent without a JSON `Content-Type`), and 400
+  (`{"error_type": "api_usage_error"}`) for a model name this server does not answer for.
 
 **Asking many questions at once is the point.** All questions in one request share the state's KV
 cache: 8 yes/no questions on a 218-token contract cost 1 prefill + 2 micro-batches, 136 ms of

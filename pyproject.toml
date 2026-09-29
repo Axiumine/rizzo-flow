@@ -11,7 +11,10 @@ description = "Local typed decisions and numeric estimates with Spark-X2.5-4B"
 requires-python = ">=3.11.4"
 # The default runtime is llama.cpp: prebuilt binaries fetched by `rizzo download`, driven through
 # ctypes, so it adds no Python dependency besides jinja2 (chat template of the GGUF file).
-dependencies = ["pydantic>=2.11,<3", "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "jinja2>=3.1,<4"]
+# fastapi 0.132 is the first with strict_content_type, on by default: a body sent without a JSON
+# Content-Type is not read as JSON. Before, a body with no Content-Type at all was, and a page on
+# another site can send that to the local API without a CORS preflight.
+dependencies = ["pydantic>=2.11,<3", "fastapi>=0.132,<1", "uvicorn>=0.34,<1", "jinja2>=3.1,<4"]
 
 [project.optional-dependencies]
 # Optional second runtime (`--backend mlx`): pick at most one. All three are MLX, only the

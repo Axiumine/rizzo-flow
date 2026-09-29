@@ -142,8 +142,9 @@ Un client scritto per l'API ospitata può puntare qui cambiando soltanto l'URL d
   non deve passare in silenzio.
 - `x_rizzo` (tempi, fingerprint, stato delle probabilità) è un'estensione fuori dal contratto.
 - Autenticazione Bearer come l'originale, attiva solo se è impostata `RIZZO_API_KEY`
-  (altrimenti l'header è ignorato). Errori: 401, 422 e 400
-  (`{"error_type": "api_usage_error"}`) per un nome di modello che questo server non serve.
+  (altrimenti l'header è ignorato). Errori: 401, 422 (richiesta non valida, oltre un limite o un
+  corpo mandato senza `Content-Type` JSON) e 400 (`{"error_type": "api_usage_error"}`) per un nome
+  di modello che questo server non serve.
   Nessun rate limit, quindi niente 429/529.
 
 `/v1/decisions` resta l'API nativa completa: `numeric`, astensione, policy, logit e statistiche.

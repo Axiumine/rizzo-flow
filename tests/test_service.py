@@ -1,4 +1,5 @@
 import copy
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,6 +34,18 @@ class FakeBackend:
 
     def score(self, prefix, jobs, mode):
         return {j.id: [0, 10] + [0] * (len(j.slots) - 2) for j in jobs}, {"generated_tokens": 0}
+
+
+class CountingBackend(FakeBackend):
+    """Counts the forward passes: a request that is refused must not cost one."""
+
+    def __init__(self):
+        super().__init__()
+        self.scored = 0
+
+    def score(self, prefix, jobs, mode):
+        self.scored += 1
+        return super().score(prefix, jobs, mode)
 
 
 @pytest.fixture
@@ -76,6 +89,33 @@ def test_api_and_all_input_validation(payload):
         assert response.json()["answers"]["supported"]["value"] is True
         payload["questions"]["route"]["options"][1]["id"] = "billing"
         assert client.post("/v1/decisions", json=payload).status_code == 422
+
+
+@pytest.mark.parametrize("route", ["/v1/decisions", "/v1/systemone"])
+@pytest.mark.parametrize(
+    "headers",
+    [{}, {"content-type": "text/plain"}, {"content-type": "application/x-www-form-urlencoded"}],
+    ids=["no-content-type", "text-plain", "form"],
+)
+def test_a_body_without_a_json_content_type_is_not_read_as_json(payload, route, headers):
+    """FastAPI 0.132 made strict_content_type the default. Before, a body with no Content-Type at
+    all was parsed as JSON, and a page on another site can POST one to 127.0.0.1 without a CORS
+    preflight (a fetch of an untyped Blob): it ran a decision on the local model."""
+    if route == "/v1/systemone":
+        payload = {
+            "state": "Cannot log in",
+            "model": "rizzo-latest",
+            "questions": {"q": {"type": "noul", "instructions": "Does the user need login help?"}},
+        }
+    body = json.dumps(payload).encode()
+    backend = CountingBackend()
+    with TestClient(create_app(Engine(backend))) as client:
+        response = client.post(route, content=body, headers=headers)
+        assert response.status_code == 422
+        assert backend.scored == 0
+        as_json = {"content-type": "application/json"}
+        assert client.post(route, content=body, headers=as_json).status_code == 200
+        assert backend.scored == 1
 
 
 def test_non_json_floats_are_a_client_error(payload):
