@@ -28,7 +28,6 @@ MODELS = {
 }
 DEFAULT_SIZE = "4b"
 MODEL_ID = MODELS[DEFAULT_SIZE].repo
-MODEL_REVISION = MODELS[DEFAULT_SIZE].revision
 RUNTIME_REVISION = "de2b4379fa1e2f2e1f99d84c83f0e008f651d86c"
 
 
@@ -223,7 +222,6 @@ QUANTS = ("q8_0", "q4_k_m", "bf16")
 DEFAULT_QUANT = "q8_0"
 VARIANTS = ("flow", "base")
 DEFAULT_VARIANT = "flow"
-DEFAULT_MODEL_PATH = MODELS[DEFAULT_SIZE].path
 
 
 def identify(config: dict) -> ModelSpec:

@@ -19,7 +19,6 @@ from ctypes import (
     c_int32,
     c_size_t,
     c_uint32,
-    c_uint64,
     c_void_p,
 )
 from dataclasses import dataclass
@@ -132,18 +131,14 @@ SIGNATURES = {
     "llama_model_get_vocab": (c_void_p, [c_void_p]),
     "llama_model_meta_val_str": (c_int32, [c_void_p, c_char_p, c_char_p, c_size_t]),
     "llama_model_chat_template": (c_char_p, [c_void_p, c_char_p]),
-    "llama_model_size": (c_uint64, [c_void_p]),
-    "llama_vocab_n_tokens": (c_int32, [c_void_p]),
     "llama_vocab_pad": (c_int32, [c_void_p]),
     "llama_vocab_eos": (c_int32, [c_void_p]),
     "llama_tokenize": (
         c_int32,
         [c_void_p, c_char_p, c_int32, POINTER(c_int32), c_int32, c_bool, c_bool],
     ),
-    "llama_token_to_piece": (c_int32, [c_void_p, c_int32, c_char_p, c_int32, c_int32, c_bool]),
     "llama_n_ctx": (c_uint32, [c_void_p]),
     "llama_n_batch": (c_uint32, [c_void_p]),
-    "llama_n_seq_max": (c_uint32, [c_void_p]),
     "llama_get_memory": (c_void_p, [c_void_p]),
     "llama_memory_clear": (None, [c_void_p, c_bool]),
     "llama_memory_seq_cp": (None, [c_void_p, c_int32, c_int32, c_int32, c_int32]),
@@ -345,7 +340,7 @@ def _matches(device: Device, needle: str) -> bool:
 class Session:
     """One model and one context. Sequence 0 holds the shared prefix, the others its branches."""
 
-    def __init__(self, library, model, context, device, n_ctx, n_batch, n_seq_max, idle_free):
+    def __init__(self, library, model, context, device, n_ctx, n_batch, idle_free):
         self.library = library
         self.idle_free = idle_free  # free device memory before the model was loaded
         self.model = model
@@ -353,7 +348,6 @@ class Session:
         self.device = device
         self.n_ctx = n_ctx
         self.n_batch = n_batch
-        self.n_seq_max = n_seq_max
         self.vocab = library.llama_model_get_vocab(model)
         self.memory = library.llama_get_memory(context)
 
@@ -421,7 +415,6 @@ class Session:
             chosen,
             int(library.llama_n_ctx(context)),
             int(library.llama_n_batch(context)),
-            int(library.llama_n_seq_max(context)),
             idle_free,
         )
 
@@ -445,13 +438,6 @@ class Session:
             raise ValueError("llama_tokenize: buffer too small")
         return buffer[:count]
 
-    def piece(self, token: int) -> str:
-        buffer = ctypes.create_string_buffer(256)
-        count = self.library.llama_token_to_piece(self.vocab, token, buffer, 256, 0, True)
-        if count < 0:
-            raise ValueError("llama_token_to_piece: buffer too small")
-        return buffer.raw[:count].decode("utf-8", errors="replace")
-
     def meta(self, key: str) -> str | None:
         buffer = ctypes.create_string_buffer(1024)
         count = self.library.llama_model_meta_val_str(self.model, key.encode(), buffer, 1024)
@@ -470,10 +456,6 @@ class Session:
     def eos_token(self) -> int | None:
         token = self.library.llama_vocab_eos(self.vocab)
         return token if token >= 0 else None
-
-    @property
-    def vocab_size(self) -> int:
-        return self.library.llama_vocab_n_tokens(self.vocab)
 
     # --- compute --------------------------------------------------------------------------
 

@@ -357,10 +357,6 @@ class Native:
         self.need_context(context)
         return self.granted.get("n_batch", self.context_params.n_batch)
 
-    def llama_n_seq_max(self, context):
-        self.need_context(context)
-        return self.context_params.n_seq_max
-
     def llama_get_memory(self, context):
         self.need_context(context)
         return self.MEMORY
@@ -404,17 +400,6 @@ class Native:
         values = (c_float * len(row))(*row)
         self.kept.append(values)
         return ctypes.cast(values, POINTER(c_float))
-
-    # --- llama.h: declared by the binding, called by no test ---
-
-    def llama_model_size(self, model):
-        raise NotImplementedError
-
-    def llama_vocab_n_tokens(self, vocab):
-        raise NotImplementedError
-
-    def llama_token_to_piece(self, vocab, token, buffer, length, lstrip, special):
-        raise NotImplementedError
 
 
 @pytest.fixture(autouse=True)
