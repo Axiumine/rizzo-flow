@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  # Not on every push: a branch that has a pull request would be run twice.
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only: nothing here writes to the repository, and there are no secrets.
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request makes the run in progress pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The uv that wrote uv.lock. Actions are pinned to commits (the tag is in the comment).
+  UV_VERSION: "0.12.17"
+
+jobs:
+  lint:
+    # No MLX here: ruff, mypy and deptry need only the test extra (the MLX imports are optional).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: uv sync --locked --extra test
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync mypy
+      - run: uv run --no-sync deptry src
+
+  test:
+    name: test (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.14"]
+        include:
+          # The tests of the MLX backend run on a tiny random-weight model. Apple Silicon has
+          # its own package; the other systems use MLX's CPU package.
+          - os: ubuntu-latest
+            mlx: cpu
+          - os: windows-latest
+            mlx: cpu
+          - os: macos-latest
+            mlx: mlx
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked --extra test --extra ${{ matrix.mlx }}
+      # No weights, no network, no GPU: the tests use fakes (and a tiny model for MLX).
+      - run: uv run --no-sync pytest -q
