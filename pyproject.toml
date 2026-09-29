@@ -6,7 +6,9 @@ build-backend = "hatchling.build"
 name = "rizzo-flow"
 version = "0.1.0"
 description = "Local typed decisions and numeric estimates with Spark-X2.5-4B"
-requires-python = ">=3.11"
+# 3.11.4: llama_release.unpack extracts with tarfile's filter="data" (PEP 706), which the
+# 3.11.0 to 3.11.3 releases do not have.
+requires-python = ">=3.11.4"
 # The default runtime is llama.cpp: prebuilt binaries fetched by `rizzo download`, driven through
 # ctypes, so it adds no Python dependency besides jinja2 (chat template of the GGUF file).
 dependencies = ["pydantic>=2.11,<3", "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "jinja2>=3.1,<4"]

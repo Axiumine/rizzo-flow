@@ -72,7 +72,7 @@ Spark-X2.5-4B at 8 bit on an RTX 5060 Ti, recorded with the earlier MLX runtime 
 
 ## Quickstart
 
-You need Python ≥ 3.11, git and [uv](https://docs.astral.sh/uv/). The same four commands work on
+You need Python ≥ 3.11.4, git and [uv](https://docs.astral.sh/uv/). The same four commands work on
 macOS, Windows and Linux; nothing is compiled and no GPU toolkit is installed.
 
 ```bash
