@@ -73,10 +73,11 @@ def evaluate(engine, fixtures: list[dict], repeats=1, compare_modes=False):
     check_fixtures(fixtures, repeats)
     # Explicit warmup is excluded from reported timings.
     engine.decide(fixtures[0]["request"])
-    rows, latencies = [], []
+    rows = []
+    latencies: list[float] = []
     categorical, statuses, accepted = [], [], []
-    numeric = {}
-    mode_times = {"shared": [], "direct": []}
+    numeric: dict[str, list[float | None]] = {}
+    mode_times: dict[str, list[float]] = {"shared": [], "direct": []}
     decision_count = 0
     mode_deltas, changed = [], 0
     for fixture in fixtures:

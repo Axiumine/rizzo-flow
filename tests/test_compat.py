@@ -8,6 +8,7 @@ from test_service import FakeBackend
 from rizzo_flow.api import create_app
 from rizzo_flow.compat import SystemOneRequest, confidence, model_name, to_native
 from rizzo_flow.engine import Engine
+from rizzo_flow.schema import BooleanQuestion, ChoiceQuestion
 
 
 @pytest.fixture
@@ -66,13 +67,16 @@ def test_no_abstention_and_structured_text(body):
     assert all(not q.policy.allow_abstain for q in native.questions.values())
     assert options["department"] == ["Billing team", "technical", "sales"]
     department = native.questions["department"]
+    assert isinstance(department, ChoiceQuestion)
     assert department.instructions == '{"question":"Which team should handle `ticket`?","ticket":7}'
     assert [o.description for o in department.options] == [
         "Billing team: Payments, invoicing",
         "technical",
         "sales: []",
     ]
-    assert native.questions["is_urgent"].true_description == "Yes. Explicitly time-sensitive"
+    urgent = native.questions["is_urgent"]
+    assert isinstance(urgent, BooleanQuestion)
+    assert urgent.true_description == "Yes. Explicitly time-sensitive"
 
 
 def test_confidence_statistic():
@@ -116,8 +120,12 @@ def test_twenty_six_answer_letters(body):
 
     def native(count, abstain):
         options = [{"id": f"o{i}", "description": f"Option {i}"} for i in range(count)]
-        question = {"type": "choice", "instructions": "Pick", "options": options}
-        question["policy"] = {"allow_abstain": abstain}
+        question = {
+            "type": "choice",
+            "instructions": "Pick",
+            "options": options,
+            "policy": {"allow_abstain": abstain},
+        }
         return {"state": "evidence", "questions": {"q": question}}
 
     with client() as http:

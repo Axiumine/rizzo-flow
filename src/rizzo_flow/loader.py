@@ -77,7 +77,7 @@ def describe() -> dict:
     from . import llama_release
     from .llama_cpp import Library, choose_device
 
-    report = {
+    report: dict[str, dict] = {
         "llama.cpp": {
             "release": llama_release.RELEASE,
             "host": "/".join(llama_release.host()),

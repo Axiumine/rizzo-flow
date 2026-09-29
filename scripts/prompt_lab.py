@@ -187,7 +187,7 @@ def score(engine, base, perturbed, smoke):
     def pick(x):
         return x["option_ids"][x["probabilities"].index(max(x["probabilities"]))]
 
-    flips = defaultdict(int)
+    flips: defaultdict[str, int] = defaultdict(int)
     for row, p in zip(perturbed, predictions["perturbed"], strict=True):
         ref = by_id.get(row["provenance"]["base_id"])
         if ref:

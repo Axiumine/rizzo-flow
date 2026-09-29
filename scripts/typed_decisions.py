@@ -140,13 +140,13 @@ def metrics(rows, predictions):
 
 
 def baselines(rows, train):
-    uniform = {}
-    frequencies = defaultdict(Counter)
+    uniform: dict[str, dict[str, dict[str, float]]] = {}
+    frequencies: defaultdict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     for row in train:
         gold = json.loads(row["gold"])
         for name, answer in gold.items():
             frequencies[(row["workflow"], name)][answer["label"]] += 1
-    prior = {}
+    prior: dict[str, dict[str, dict[str, float]]] = {}
     for row in rows:
         questions = json.loads(row["questions"])
         uniform[row["id"]] = {}
@@ -188,7 +188,8 @@ def run_model(rows, args):
         return compat.from_native(request, engine.decide(native), options, served)
 
     call(rows[0])  # warm-up, not timed
-    predictions, seconds, cases = {}, [], []
+    predictions: dict[str, dict[str, dict[str, float]]] = {}
+    seconds, cases = [], []
     for index, row in enumerate(rows, 1):
         mark = time.perf_counter()
         response = call(row)

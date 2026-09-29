@@ -328,11 +328,11 @@ def download_model(destination=None, size=DEFAULT_SIZE, variant=None):
             allow_patterns=CHECKPOINT_FILES + list(spec.weights),
             token=hf_token(),
         )
-    spec = MODELS[size]
+    base = MODELS[size]
     return snapshot_download(
-        spec.repo,
-        revision=spec.revision,
-        local_dir=destination or spec.path,
+        base.repo,
+        revision=base.revision,
+        local_dir=destination or base.path,
         allow_patterns=[
             "*.json",
             "*.jinja",

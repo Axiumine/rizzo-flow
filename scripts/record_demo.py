@@ -47,6 +47,8 @@ def main():
     with PAGE.open(encoding="utf-8", newline="") as stream:  # keep the line endings as they are
         page = stream.read()
     found = LINE.search(page)
+    if found is None:
+        raise SystemExit(f"{PAGE}: no `var DEMO = {{...}};` line to re-record")
     demo = json.loads(found.group(2))
     backend = load_backend(
         args.backend, quant=args.quant, weights=args.weights, bits=args.bits, device=args.device
@@ -66,13 +68,14 @@ def main():
                     }
                 )
                 native, options = compat.to_native(request)
+                response = engine.decide(native)  # the first call warms up and is not timed
                 seconds = []
-                for _ in range(args.repeats + 1):  # the first call warms up and is dropped
+                for _ in range(args.repeats):
                     mark = time.perf_counter()
                     response = engine.decide(native)
                     seconds.append(time.perf_counter() - mark)
                 answer = compat.from_native(request, response, options, served)["answers"]["q"]
-                record["ms"] = round(statistics.median(seconds[1:]) * 1000)
+                record["ms"] = round(statistics.median(seconds) * 1000)
                 times.append(record["ms"])
                 if kind == "bool":
                     record["p"] = round(answer["noul"], 4)

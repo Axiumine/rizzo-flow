@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .config import FLOW_CHECKPOINTS, RUNTIME_REVISION, check_limits, identify
 from .prompts import PROMPT_VERSION, Compiled, canonical
-from .runtime import resolve
+from .runtime import import_mlx, resolve
 
 
 def quantize_model(model, bits):
@@ -83,7 +83,7 @@ class SparkBackend:
         # Before the device, the process defaults and the checkpoint are touched.
         check_limits(batch_size, prefill_chunk)
         target, backend = resolve(device)
-        import mlx.core as mx
+        mx = import_mlx()  # untyped: the mlx.core stubs lack __version__
         from spark_mlx_llm import load
 
         mx.set_default_device(target)

@@ -54,7 +54,7 @@ def test_selected_projection_equals_full_vocabulary(bits):
     hidden = model.model(tokens)[:, -1, :]
     expected = model(tokens)[:, -1, [10, 11, 12]]
     actual = selected_logits(model, hidden, [10, 11, 12])
-    assert mx.max(mx.abs(expected - actual)).item() < 1e-4
+    assert float(mx.max(mx.abs(expected - actual))) < 1e-4
 
 
 @pytest.mark.parametrize("prefix_length", [5, 16, 49])

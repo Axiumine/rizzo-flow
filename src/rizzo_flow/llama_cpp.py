@@ -8,6 +8,7 @@ by value, so a library built from another commit can crash instead of failing cl
 import ctypes
 import os
 import sys
+from collections.abc import Callable
 from ctypes import (
     POINTER,
     c_bool,
@@ -23,7 +24,7 @@ from ctypes import (
 )
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from . import llama_release
 from .runtime import on_path
@@ -203,6 +204,12 @@ class Library:
     """The loaded runtime: libllama plus the ggml libraries and compute backends beside it."""
 
     _loaded: ClassVar[dict[Path, "Library"]] = {}
+
+    if TYPE_CHECKING:
+
+        def __getattr__(self, name: str) -> Callable[..., Any]:
+            # The C functions of SIGNATURES are attached with setattr() in __init__.
+            raise NotImplementedError
 
     def __init__(self, directory: Path):
         given = Path(directory).resolve()

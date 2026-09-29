@@ -268,10 +268,10 @@ def main():
     )
 
     # Systems: ~2k-token states with 21 binary criteria each; no gold labels.
-    groups = defaultdict(list)
+    by_state = defaultdict(list)
     for row in read(data / "shape777.jsonl"):
-        groups[row["group_id"]].append(row)
-    groups = list(groups.values())
+        by_state[row["group_id"]].append(row)
+    groups = list(by_state.values())
     runs = {}
     for mode, count in (("shared", args.shape_states), ("direct", args.direct_states)):
         selected = groups[:count]

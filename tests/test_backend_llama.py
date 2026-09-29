@@ -29,7 +29,7 @@ class FakeSession:
     def __init__(self):
         self.calls = []
         self.cells = {}  # sequence -> positions held
-        self.last = None
+        self.last: tuple[list[int], list[int]] | None = None
 
     def clear(self):
         self.calls.append(("clear",))
@@ -54,6 +54,7 @@ class FakeSession:
         self.last = (positions, list(outputs))
 
     def logits(self, index, slots):
+        assert self.last is not None, "logits were requested before any decode"
         positions, outputs = self.last
         assert index in outputs, "logits were not requested at this row"
         return [positions[index] + slot / 1000 for slot in slots]

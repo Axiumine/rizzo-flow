@@ -384,8 +384,9 @@ def install(accelerator: str = "auto", progress=None) -> Path:
     for name, sha256 in PACKAGES[(*host(), accelerator)]:
         archive = fetch(f"{BASE_URL}/{name}", RUNTIMES / "downloads" / name, sha256, progress)
         unpack(archive, staging)
-    if find_library(staging) is None:
+    staged = find_library(staging)
+    if staged is None:
         raise ValueError(f"{library_name()} not found in the {accelerator} package")
     shutil.rmtree(directory, ignore_errors=True)  # what an install that lost its library left
     staging.replace(directory)
-    return find_library(directory).parent
+    return directory / staged.parent.relative_to(staging)

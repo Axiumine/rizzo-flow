@@ -5,6 +5,7 @@ import sys
 import sysconfig
 import types
 from pathlib import Path
+from typing import Any
 
 # User-facing names. `gpu` means whichever accelerator this install has.
 DEVICES = ("auto", "gpu", "mlx", "cuda", "cpu")
@@ -31,7 +32,7 @@ def prepare():
         return
     # mlx-lm raises RLIMIT_NOFILE at import time through the Unix-only `resource` module.
     if "resource" not in sys.modules:
-        stub = types.ModuleType("resource")
+        stub: Any = types.ModuleType("resource")  # gets its attributes below
         stub.RLIMIT_NOFILE = 0
         stub.setrlimit = lambda *args: None
         sys.modules["resource"] = stub

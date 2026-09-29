@@ -2,6 +2,7 @@
 
 import math
 from dataclasses import dataclass
+from typing import cast
 
 from .schema import BooleanQuestion, ChoiceQuestion, NumericQuestion, Question, ScoreQuestion
 
@@ -129,7 +130,8 @@ def decode(question: Question, logits: list[float], temperature: float = 1.0) ->
         result["value"] = (winner == "true") if status == "ok" else None
         result["probability_true_given_available"] = conditional[1] if conditional else None
     else:
-        values = [c.value for c, _ in valid]
+        # Score and numeric candidates always carry a value.
+        values = cast("list[float]", [c.value for c, _ in valid])
         stats = summarize(values, conditional) if conditional and status == "ok" else None
         result["score" if question.type == "score" else "value"] = stats["mean"] if stats else None
         result["statistics_given_available"] = stats

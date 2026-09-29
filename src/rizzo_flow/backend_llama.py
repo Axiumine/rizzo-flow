@@ -142,7 +142,7 @@ class LlamaBackend:
             "gguf_source": pin.repo if pin else None,  # None: not one of the pinned files
             "gguf_revision": pin.revision if pin else None,
             "source_files": {path.name: sha256},
-            "precision": pin.quant if pin else FILE_TYPES.get(file_type, f"ftype{file_type}"),
+            "precision": pin.quant if pin else FILE_TYPES.get(str(file_type), f"ftype{file_type}"),
             "device": "gpu" if chosen else "cpu",
             "backend": chosen.backend.lower() if chosen else "cpu",
             "runtime": "llama.cpp",
@@ -188,7 +188,8 @@ class LlamaBackend:
 
     def _groups(self, jobs, prefix_length):
         """Microbatches of up to `batch_size` suffixes that fit one llama_decode call."""
-        group, used = [], 0
+        group: list[Compiled] = []
+        used = 0
         for job in jobs:
             size = len(job.tokens) - prefix_length
             if group and (len(group) == self.batch_size or used + size > N_BATCH):
@@ -260,7 +261,10 @@ class LlamaBackend:
                     rows = [self._feed(suffixes[0], start, 1, True)]  # any length, in chunks
                 else:
                     # Suffixes lie end to end: no padding, each reads its own last position.
-                    tokens, positions, sequences, rows = [], [], [], []
+                    tokens: list[int] = []
+                    positions: list[int] = []
+                    sequences: list[int] = []
+                    rows = []
                     for sequence, suffix in enumerate(suffixes, start=1):
                         tokens += suffix
                         positions += range(start, start + len(suffix))
@@ -284,6 +288,7 @@ class LlamaBackend:
             "batches": batches,
             "generated_tokens": 0,
         }
-        if self._lowest_free is not None:
-            timing["peak_device_bytes"] = self.peak_device_bytes()
+        peak = self.peak_device_bytes()
+        if peak is not None:
+            timing["peak_device_bytes"] = peak
         return result, timing

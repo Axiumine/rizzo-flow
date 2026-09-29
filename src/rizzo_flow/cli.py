@@ -215,6 +215,7 @@ def main():
         from .calibration import Calibration
         from .engine import Engine
 
+        request = fixtures = None
         # Validate the input and --calibration, and that --output is free and can be created,
         # before loading gigabytes of weights.
         if args.command != "serve":
@@ -256,15 +257,15 @@ def main():
         engine = None
         try:
             engine = Engine(backend, ctx=args.ctx, calibration=calibration)
-            if args.command == "decide":
+            if request is not None:  # the `decide` command
                 write_json(engine.decide(request), args.output)
-            elif args.command == "evaluate":
+            elif fixtures is not None:  # the `evaluate` command
                 from .evaluation import evaluate
 
                 write_json(
                     evaluate(engine, fixtures, args.repeats, args.compare_modes), args.output
                 )
-            elif args.command == "serve":
+            else:  # the `serve` command
                 import uvicorn
 
                 from .api import create_app

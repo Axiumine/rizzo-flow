@@ -28,7 +28,7 @@ def projection_delta(backend, job):
     head = backend.model.model.embedding
     native = head.as_linear(hidden)[:, mx.array(job.slots)].astype(mx.float32)
     mx.eval(optimized, native)
-    delta = mx.max(mx.abs(optimized - native)).item()
+    delta = float(mx.max(mx.abs(optimized - native)))
     if delta > 0.125:
         raise RuntimeError(f"Selected projection diverged from full head: {delta}")
     return delta

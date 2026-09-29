@@ -10,13 +10,15 @@ from .decisions import softmax
 from .prompts import canonical
 from .schema import Strict
 
+QuestionType = Literal["boolean", "choice", "score", "numeric"]
+
 
 class Calibration(Strict):
     version: Literal[1] = 1
     fingerprint: str
     dataset_sha256: str
     temperatures: dict[
-        Literal["boolean", "choice", "score", "numeric"],
+        QuestionType,
         Annotated[float, Field(gt=0, allow_inf_nan=False)],
     ]
     fit_metrics: dict
@@ -31,7 +33,7 @@ class Calibration(Strict):
 
 
 class LabeledLogits(Strict):
-    type: Literal["boolean", "choice", "score", "numeric"]
+    type: QuestionType
     logits: list[float] = Field(min_length=2, max_length=26)
     label_index: int = Field(ge=0)
 
@@ -39,7 +41,7 @@ class LabeledLogits(Strict):
 def fit_temperature(rows: list[dict], fingerprint: str) -> Calibration:
     if not rows:
         raise ValueError("Calibration requires labeled rows")
-    groups = {}
+    groups: dict[QuestionType, list[LabeledLogits]] = {}
     for raw in rows:
         row = LabeledLogits.model_validate(raw)
         softmax(row.logits)

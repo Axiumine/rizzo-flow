@@ -4,7 +4,7 @@ Only the interface matches the public TypeSafe docs. Answers come from the local
 checkpoint: the response `model` field always reports the local model, never a Jev version.
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
@@ -123,7 +123,7 @@ def to_native(request: SystemOneRequest) -> tuple[Request, dict[str, list[str]]]
     questions = {}
     options = {}
     for key, question in request.questions.items():
-        native = {"instructions": text(question.instructions), "policy": policy}
+        native: dict[str, Any] = {"instructions": text(question.instructions), "policy": policy}
         if isinstance(question, NoulQuestion):
             native["type"] = "boolean"
             criteria = question.criteria
@@ -168,7 +168,7 @@ def from_native(
             named = {name: ps[f"o{index}"] for index, name in enumerate(options[key])}
             answers[key] = {
                 "type": "choice",
-                "choice": max(named, key=named.get),
+                "choice": max(named, key=named.__getitem__),
                 "probabilities": named,
                 "confidence": confidence(list(named.values())),
             }

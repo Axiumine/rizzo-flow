@@ -39,7 +39,7 @@ class StubBackend(FakeBackend):
 
     def __init__(self, tokenizer: Any = None) -> None:
         super().__init__()
-        self.tokenizer = tokenizer if tokenizer is not None else CharTokenizer()
+        self.tokenizer: Any = tokenizer if tokenizer is not None else CharTokenizer()
         self.calls: list[list[str]] = []
         self.threads: list[threading.Thread] = []
 
