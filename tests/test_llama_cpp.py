@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from rizzo_flow import llama_release
+from rizzo_flow import llama_cpp, llama_release
 from rizzo_flow.llama_cpp import LOG_CALLBACK, SIGNATURES, ContextParams, Library, ModelParams
 
 GIB = 1 << 30
@@ -439,3 +439,63 @@ def test_a_runtime_without_a_symbol_is_refused_naming_the_expected_release(runti
     with pytest.raises(ValueError, match=exactly(message)):
         Library.open(runtime.directory)
     assert Library._loaded == {}
+
+
+def test_a_library_resolves_the_directory_it_is_given(runtime):
+    library = Library(runtime.directory / ".." / "runtime")
+    assert library.directory == runtime.directory.resolve()
+
+
+def test_a_runtime_one_folder_down_is_opened_from_there(runtime, tmp_path):
+    root = tmp_path / "unpacked"
+    runtime.lay_out(root / "llama-b11081")
+    Library.open(root)
+    assert {path.parent for path, _ in runtime.loads} == {(root / "llama-b11081").resolve()}
+
+
+def test_a_runtime_reached_through_its_parent_folder_is_one_library(runtime, tmp_path):
+    root, inner = tmp_path / "unpacked", tmp_path / "unpacked" / "llama-b11081"
+    runtime.lay_out(inner)
+    (inner / "libcudart.so.13").touch()  # the CUDA runtime beside libllama is found there as well
+    first = Library.open(root)
+    assert first.directory == inner.resolve()
+    assert Library.open(inner) is first  # backends register globally: never a second instance
+    assert Library.open(root / ".." / "unpacked") is first
+    assert Library._loaded == {inner.resolve(): first}
+    assert runtime.calls("ggml_backend_load_all_from_path") == [(str(inner.resolve()).encode(),)]
+    assert runtime.calls("llama_backend_init") == [()]
+    assert [path.name for path, _ in runtime.loads] == [
+        "libcudart.so.13",
+        "libggml-base.so",
+        "libggml.so",
+        "libllama.so",
+    ]
+    assert {path.parent for path, _ in runtime.loads} == {inner.resolve()}
+
+
+def test_a_library_made_from_a_parent_folder_reports_the_folder_that_holds_libllama(
+    runtime, tmp_path
+):
+    runtime.lay_out(tmp_path / "unpacked" / "b")
+    assert Library(tmp_path / "unpacked").directory == (tmp_path / "unpacked" / "b").resolve()
+
+
+def test_libllama_in_the_folder_itself_wins_over_one_below_it(runtime, tmp_path):
+    root = tmp_path / "unpacked"
+    runtime.lay_out(root)
+    runtime.lay_out(root / "older")
+    assert Library.open(root).directory == root.resolve()
+    assert {path.parent for path, _ in runtime.loads} == {root.resolve()}
+
+
+def test_the_runtime_folder_is_the_resolved_one_even_when_the_library_sits_behind_a_link(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / llama_release.library_name()).touch()
+    outer = tmp_path / "runtime"
+    outer.mkdir()
+    try:
+        (outer / "build").symlink_to(real, target_is_directory=True)
+    except OSError:
+        pytest.skip("this account cannot create symbolic links")
+    assert llama_cpp._runtime_folder(outer) == real.resolve()

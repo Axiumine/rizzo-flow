@@ -191,15 +191,24 @@ def _shared(directory: Path, stem: str) -> Path | None:
     return next((directory / n for n in names if (directory / n).exists()), None)
 
 
+def _runtime_folder(directory: Path) -> Path | None:
+    """The resolved folder that holds libllama: `directory` or the one below it that does (release
+    tarballs nest the runtime), as `llama_release.find_library` looks; None when there is none."""
+    library = llama_release.find_library(directory)
+    return library.parent.resolve() if library else None
+
+
 class Library:
     """The loaded runtime: libllama plus the ggml libraries and compute backends beside it."""
 
     _loaded: ClassVar[dict[Path, "Library"]] = {}
 
     def __init__(self, directory: Path):
-        self.directory = Path(directory).resolve()
-        if llama_release.find_library(self.directory) is None:
-            raise ValueError(f"{llama_release.library_name()} not found in {self.directory}")
+        given = Path(directory).resolve()
+        folder = _runtime_folder(given)
+        if folder is None:
+            raise ValueError(f"{llama_release.library_name()} not found in {given}")
+        self.directory = folder  # everything is opened beside libllama, wherever below `given`
         self._handles = self._open()
         for name, (result, arguments) in SIGNATURES.items():
             function = next((getattr(h, name) for h in self._handles if hasattr(h, name)), None)
@@ -228,8 +237,9 @@ class Library:
 
     @classmethod
     def open(cls, directory: Path | None = None) -> "Library":
-        """One instance per directory and process: backends register globally in ggml."""
-        directory = Path(directory or llama_release.locate()).resolve()
+        """One instance per runtime folder and process: backends register globally in ggml."""
+        given = Path(directory or llama_release.locate()).resolve()
+        directory = _runtime_folder(given) or given  # the same runtime, whichever way it is named
         if directory not in cls._loaded:
             cls._loaded[directory] = cls(directory)
         return cls._loaded[directory]
