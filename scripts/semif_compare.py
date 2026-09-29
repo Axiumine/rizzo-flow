@@ -20,16 +20,16 @@ from pathlib import Path
 
 
 def read(path):
-    return [
-        json.loads(line)
-        for line in Path(path).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    # A record ends at "\n" only: str.splitlines() also breaks at U+0085, U+2028 and U+2029, which
+    # json.dumps(ensure_ascii=False) leaves inside strings.
+    text = Path(path).read_text(encoding="utf-8")
+    return [json.loads(line) for line in text.split("\n") if line.strip()]
 
 
 def write(path, value):
-    # Create-only, like every other benchmark artifact in this project.
-    with Path(path).open("x", encoding="utf-8") as stream:
+    # Create-only, like every other benchmark artifact in this project. newline="\n": text mode
+    # would write "\r\n" on Windows, and the bytes of a report are hashed (results/SHA256SUMS).
+    with Path(path).open("x", encoding="utf-8", newline="\n") as stream:
         if isinstance(value, list):
             stream.writelines(json.dumps(row, allow_nan=False) + "\n" for row in value)
         else:

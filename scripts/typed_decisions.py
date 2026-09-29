@@ -272,7 +272,8 @@ def main():
     )
     if args.output:
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        with open(args.output, "x", encoding="utf-8") as stream:  # results are create-only
+        # Create-only, and LF on every OS (text mode would write "\r\n" on Windows).
+        with open(args.output, "x", encoding="utf-8", newline="\n") as stream:
             json.dump(report, stream, indent=2, ensure_ascii=False)
 
 
