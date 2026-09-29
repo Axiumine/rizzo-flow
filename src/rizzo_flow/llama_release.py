@@ -240,16 +240,19 @@ def find_library(directory: Path) -> Path | None:
 
 def locate(family: str | None = None) -> Path:
     """Directory holding libllama: `RIZZO_LLAMA_DIR`, else the installed pinned runtime of the
-    requested GPU family (`--device vulkan`), else the best one installed."""
+    requested family (`--device vulkan`), else the best one installed. Only a family name is a
+    request: `auto`, `gpu`, the name of a device or nothing at all get the runtime `pick("auto")`
+    recommends."""
     override = os.environ.get(RUNTIME_DIR_ENV)
     if override:
         library = find_library(Path(override))
         if library is None:
             raise ValueError(f"{RUNTIME_DIR_ENV}={override}: {library_name()} not found there")
         return library.parent
+    wanted = (family or "").lower()
     order = supported()
-    if family is not None:
-        order = sorted(order, key=lambda name: name != family)
+    if wanted in PREFERENCE:
+        order = sorted(order, key=lambda name: name != wanted)
     elif order:
         # Prefer what `pick("auto")` recommends: the first entry of PREFERENCE may be a
         # family this machine cannot drive (a CUDA runtime on an AMD box enumerates no

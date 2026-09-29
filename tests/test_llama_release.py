@@ -13,10 +13,30 @@ import pytest
 
 from rizzo_flow import llama_release as release
 
+LIBRARY = "llama.testlib"  # any name will do: the platform's real one is not what is tested
+
 
 def at(monkeypatch, system, machine, nvidia=False):
     monkeypatch.setattr(release, "host", lambda: (system, machine))
     monkeypatch.setattr(release, "nvidia_driver", lambda: nvidia)
+
+
+@pytest.fixture
+def runtimes(tmp_path, monkeypatch):
+    """Runtimes are installed under a temporary directory, on a Linux x86-64 box without NVIDIA."""
+    monkeypatch.setattr(release, "RUNTIMES", tmp_path / "runtimes")
+    monkeypatch.setattr(release, "library_name", lambda: LIBRARY)
+    monkeypatch.delenv(release.RUNTIME_DIR_ENV, raising=False)
+    at(monkeypatch, "linux", "x64")
+    return tmp_path
+
+
+def make_runtime(family):
+    """An installed runtime of `family`."""
+    folder = release.install_dir(family)
+    folder.mkdir(parents=True)
+    (folder / LIBRARY).write_bytes(b"library")
+    return folder
 
 
 @pytest.mark.parametrize(
@@ -279,6 +299,66 @@ def test_locate_orders_by_pick_not_by_preference(monkeypatch, tmp_path):
     monkeypatch.setattr(release, "find_library", lambda directory: directory / "libllama.so")
     monkeypatch.delenv(release.RUNTIME_DIR_ENV, raising=False)
     assert release.locate() == tmp_path / "vulkan"
+
+
+def test_locate_with_a_family_puts_it_first_and_never_asks_for_a_recommendation(
+    runtimes, monkeypatch
+):
+    def recommend(accelerator="auto"):
+        raise AssertionError("a named family is not a question for pick()")
+
+    monkeypatch.setattr(release, "pick", recommend)
+    make_runtime("cpu")
+    make_runtime("vulkan")
+    make_runtime("sycl")
+    assert release.locate("cpu") == release.install_dir("cpu")
+    assert release.locate("sycl") == release.install_dir("sycl")
+    # `rocm` is not installed: the rest keep the order of preference (sycl before vulkan).
+    assert release.locate("rocm") == release.install_dir("sycl")
+    assert release.locate("metal") == release.install_dir("sycl")  # not even a family here
+
+
+@pytest.mark.parametrize(
+    "device",
+    ["auto", "gpu", "AUTO", "Vulkan1", "radeon", "mlx", pytest.param("", id="empty")],
+)
+def test_locate_follows_the_recommendation_unless_a_family_is_named(runtimes, monkeypatch, device):
+    """`--device` reaches locate() as it was typed, and only a family name asks for a runtime:
+    `auto`, `gpu` or the name of a device get what `pick("auto")` recommends, as with no argument
+    at all. An installed CUDA build must not shadow Vulkan on a machine without an NVIDIA driver."""
+    for family in ("cuda", "sycl", "vulkan", "cpu"):
+        make_runtime(family)
+    assert release.locate(device) == release.install_dir("vulkan")  # no NVIDIA driver
+    at(monkeypatch, "linux", "x64", nvidia=True)
+    assert release.locate(device) == release.install_dir("cuda")
+    # The recommendation is not installed: the rest keep the order of preference (sycl first).
+    (release.install_dir("cuda") / LIBRARY).unlink()
+    (release.install_dir("vulkan") / LIBRARY).unlink()
+    assert release.locate(device) == release.install_dir("sycl")
+
+
+def test_locate_recommends_for_auto_and_gpu_exactly_as_it_does_without_a_family(
+    runtimes, monkeypatch
+):
+    for family in ("cuda", "sycl", "cpu"):
+        make_runtime(family)
+    asked = []
+
+    def recommend(accelerator="auto"):
+        asked.append(accelerator)
+        return "cpu"
+
+    monkeypatch.setattr(release, "pick", recommend)
+    picked = [release.locate(device) for device in (None, "auto", "gpu")]
+    assert picked == [release.install_dir("cpu")] * 3  # the recommendation, not cuda
+    assert asked == ["auto"] * 3
+
+
+@pytest.mark.parametrize("family", ["cuda", "CUDA", "Cuda"])
+def test_a_family_is_a_request_whatever_its_case(runtimes, family):
+    make_runtime("cuda")
+    make_runtime("vulkan")  # what `auto` would take here: no NVIDIA driver
+    assert release.locate(family) == release.install_dir("cuda")
 
 
 def test_rosetta_is_reported_so_the_cpu_package_is_not_a_surprise(monkeypatch):
