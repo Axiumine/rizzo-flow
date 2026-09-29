@@ -295,6 +295,60 @@ def test_write_json_writes_text_to_a_stream_that_has_no_binary_side():
     assert stream.getvalue() == '{\n  "name": "è ✓"\n}\n'
 
 
+# read_jsonl ------------------------------------------------------------------------------------
+
+
+def test_read_jsonl_splits_records_on_newlines_only(tmp_path):
+    # `json.dumps(ensure_ascii=False)` leaves these characters in a string as they are, and
+    # JSON Lines ends a record at "\n" only; str.splitlines() also breaks at all three.
+    record = {
+        "state": "line\N{LINE SEPARATOR}break, next\N{PARAGRAPH SEPARATOR}one, nel\N{NEXT LINE}end"
+    }
+    path = tmp_path / "rows.jsonl"
+    path.write_bytes((json.dumps(record, ensure_ascii=False) + "\n").encode())
+    assert cli.read_jsonl(path) == [record]
+
+
+def test_read_jsonl_keeps_every_record_when_the_strings_hold_separators(tmp_path):
+    rows = [
+        {"text": f"a{separator}b"}
+        for separator in "\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}\N{NEXT LINE}"
+    ]
+    path = tmp_path / "rows.jsonl"
+    path.write_bytes("".join(json.dumps(row, ensure_ascii=False) + "\r\n" for row in rows).encode())
+    assert cli.read_jsonl(path) == rows
+
+
+def with_bom(path):
+    """The file with the byte order mark that Windows PowerShell 5.1 (`Out-File -Encoding utf8`)
+    and old versions of Notepad put at the start of a UTF-8 file."""
+    path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+    return path
+
+
+def test_read_jsonl_ignores_a_byte_order_mark_at_the_start_of_the_file(tmp_path):
+    path = tmp_path / "rows.jsonl"
+    path.write_bytes('{"a": "è ✓"}\n[1, 2]\n'.encode())
+    assert cli.read_jsonl(with_bom(path)) == [{"a": "è ✓"}, [1, 2]]
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ["\x85"],
+        ["\u2028", "\u2029"],
+        ["", " ", "a \x85\u2028\u2029 b"],
+        ["\n\r\x0b\x0c\x1c\x1d\x1e", "\x85\n\u2028"],  # json.dumps escapes the control ones
+    ],
+)
+def test_read_jsonl_keeps_strings_made_of_line_breaking_characters_whole(tmp_path, values):
+    path = tmp_path / "rows.jsonl"
+    path.write_bytes(
+        "".join(json.dumps(value, ensure_ascii=False) + "\n" for value in values).encode()
+    )
+    assert cli.read_jsonl(path) == values
+
+
 # calibrate -------------------------------------------------------------------------------------
 
 
@@ -302,6 +356,24 @@ def calibration_rows(count=12):
     return [
         {"type": "boolean", "logits": [0, 8], "label_index": int(i % 2 == 0)} for i in range(count)
     ]
+
+
+def test_calibrate_reads_rows_that_start_with_a_byte_order_mark(rizzo, tmp_path):
+    plain = write_jsonl(tmp_path / "plain.jsonl", calibration_rows())
+    marked = with_bom(write_jsonl(tmp_path / "marked.jsonl", calibration_rows()))
+    for source, name in ((plain, "plain"), (marked, "marked")):
+        out, err = rizzo.run(
+            "calibrate", source, "--fingerprint", "fp", "--output", tmp_path / f"{name}.json"
+        )
+        assert (out, err) == ("", "")
+    # The digest is that of the rows, not of the bytes of the file that held them.
+    assert (tmp_path / "marked.json").read_bytes() == (tmp_path / "plain.json").read_bytes()
+
+
+def test_a_calibration_file_may_start_with_a_byte_order_mark(tmp_path):
+    plain = write_calibration(tmp_path / "plain.json")
+    marked = with_bom(write_calibration(tmp_path / "marked.json"))
+    assert Calibration.from_file(marked) == Calibration.from_file(plain)
 
 
 def test_calibrate_leaves_no_file_behind_for_a_fingerprint_utf8_cannot_encode(rizzo, tmp_path):
@@ -375,6 +447,22 @@ def test_a_calibration_file_that_cannot_be_read_fails_before_the_model_is_loaded
 
 
 # evaluate --------------------------------------------------------------------------------------
+
+
+def test_decide_reads_a_request_file_that_starts_with_a_byte_order_mark(
+    rizzo, loaded, request_file
+):
+    plain, _ = rizzo.run("decide", request_file)
+    marked, err = rizzo.run("decide", with_bom(request_file))
+    assert err == ""
+    assert json.loads(marked)["answers"] == json.loads(plain)["answers"]
+
+
+def test_evaluate_reads_fixtures_that_start_with_a_byte_order_mark(rizzo, loaded, fixtures_file):
+    plain = json.loads(rizzo.run("evaluate", fixtures_file).out)
+    marked = json.loads(rizzo.run("evaluate", with_bom(fixtures_file)).out)
+    assert marked["dataset_sha256"] == plain["dataset_sha256"]
+    assert marked["summary"]["categorical"] == plain["summary"]["categorical"]
 
 
 @pytest.mark.parametrize(

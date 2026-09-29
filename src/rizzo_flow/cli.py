@@ -49,11 +49,12 @@ def refuse_existing(destination):
 
 
 def read_jsonl(path):
-    return [
-        json.loads(line)
-        for line in Path(path).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    # A record ends at "\n" and nowhere else: str.splitlines() also breaks at U+0085, U+2028 and
+    # U+2029, which json.dumps(ensure_ascii=False) leaves as they are inside strings.
+    # utf-8-sig: Windows PowerShell 5.1 (-Encoding utf8) and old Notepad start UTF-8 files with a
+    # BOM, which json rejects.
+    text = Path(path).read_text(encoding="utf-8-sig")
+    return [json.loads(line) for line in text.split("\n") if line.strip()]
 
 
 def progress(name, done, total):
@@ -199,7 +200,7 @@ def main():
         if args.command == "decide":
             from .schema import Request
 
-            request = Request.model_validate_json(args.input.read_text(encoding="utf-8"))
+            request = Request.model_validate_json(args.input.read_text(encoding="utf-8-sig"))
         elif args.command == "evaluate":
             from .evaluation import check_fixtures, check_requests
 

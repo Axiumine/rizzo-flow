@@ -24,7 +24,7 @@ class Calibration(Strict):
 
     @classmethod
     def from_file(cls, path):
-        item = cls.model_validate_json(path.read_text(encoding="utf-8"))
+        item = cls.model_validate_json(path.read_text(encoding="utf-8-sig"))
         if any(not math.isfinite(t) or t <= 0 for t in item.temperatures.values()):
             raise ValueError("Calibration temperatures must be finite and positive")
         return item
