@@ -1,12 +1,16 @@
 """HTTP API (api.py): the shape of error bodies and what the routes refuse."""
 
 import json
+import math
+import sys
 from typing import Any
 
 import pytest
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from test_service import FakeBackend
 
+from rizzo_flow import api
 from rizzo_flow.api import create_app, jsonable
 from rizzo_flow.engine import Engine
 
@@ -56,6 +60,151 @@ def wire(**overrides: Any) -> dict[str, Any]:
 def post_json(client: TestClient, path: str, body: Any):
     """POST a body that holds lone surrogates: `json=` cannot encode them, `dumps` escapes them."""
     return client.post(path, content=json.dumps(body), headers=JSON)
+
+
+# jsonable ----------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (math.nan, "<nan>"),
+        (math.inf, "<inf>"),
+        (-math.inf, "<-inf>"),
+        (1.5, 1.5),
+        (0.0, 0.0),
+        (7, 7),
+        (True, True),
+        ("text", "text"),
+        (None, None),
+        (
+            {1: math.nan, "b": [math.inf, (2, math.nan)]},
+            {"1": "<nan>", "b": ["<inf>", [2, "<nan>"]]},
+        ),
+        ((1, 2), [1, 2]),
+        ([], []),
+        ({}, {}),
+    ],
+)
+def test_jsonable_keeps_json_values_and_names_the_rest(value, expected):
+    assert jsonable(value) == expected
+
+
+def nested(levels: int, bottom: Any = "bottom") -> Any:
+    value = bottom
+    for _ in range(levels):
+        value = [value]
+    return value
+
+
+@pytest.mark.parametrize("wrap", [lambda v: [v], lambda v: {"k": v}], ids=["list", "dict"])
+def test_jsonable_cuts_nesting_that_the_stack_could_not_walk(wrap):
+    value: Any = "x"
+    for _ in range(sys.getrecursionlimit() * 2):
+        value = wrap(value)
+    result = jsonable(value)  # the walk used to end in a RecursionError, at about this depth
+    levels = 0
+    while not isinstance(result, str):
+        result = result[0] if isinstance(result, list) else result["k"]
+        levels += 1
+    assert (levels, result) == (api.MAX_ECHO_DEPTH, "<nested too deeply>")
+
+
+def test_jsonable_keeps_as_many_levels_as_the_echo_depth_and_no_more():
+    kept = json.dumps(jsonable(nested(api.MAX_ECHO_DEPTH)))
+    cut = json.dumps(jsonable(nested(api.MAX_ECHO_DEPTH + 1)))
+    assert "bottom" in kept
+    assert "<nested too deeply>" not in kept
+    assert "bottom" not in cut
+    assert "<nested too deeply>" in cut
+
+
+def test_what_is_cut_is_a_level_of_nesting_never_a_value():
+    # Only a list or a dict that lies too deep is named; text, numbers and null are kept at any
+    # depth they can be reached at.
+    deepest = api.MAX_ECHO_DEPTH - 1
+    assert jsonable(nested(deepest, [None, 1, "text", {}])) == nested(
+        deepest, [None, 1, "text", "<nested too deeply>"]
+    )
+
+
+# the echo of an error ----------------------------------------------------------------------------
+
+
+def test_a_validation_error_over_input_nested_beyond_the_stack_is_still_a_422():
+    # `json.loads` takes far more levels than the recursion limit, and pydantic echoes the input
+    # of its error: the handler used to end in a RecursionError, a 500. Built here, not posted:
+    # how deep a body can be parsed depends on the Python version and the OS.
+    app = create_app(Engine(RecordingBackend()), api_key="")
+    handler: Any = app.exception_handlers[RequestValidationError]
+    value: Any = "x"
+    for _ in range(sys.getrecursionlimit() * 2):
+        value = [{"k": value}]
+    error = RequestValidationError(
+        [{"type": "string_type", "loc": ("body", "state"), "msg": "bad", "input": value}]
+    )
+    response = handler(None, error)
+    assert response.status_code == 422
+    (detail,) = json.loads(response.body)["detail"]
+    assert (detail["type"], detail["loc"], detail["msg"]) == (
+        "string_type",
+        ["body", "state"],
+        "bad",
+    )
+    assert "<nested too deeply>" in json.dumps(detail["input"])
+
+
+def wire_without_model(**overrides: Any) -> dict[str, Any]:
+    body = wire(**overrides)
+    del body["model"]
+    return body
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "error_type", "loc"),
+    [
+        # extra="forbid": the field is refused as it is, and the error echoes its content.
+        (
+            "/v1/decisions",
+            {**native(), "deep": nested(api.MAX_ECHO_DEPTH + 20)},
+            "extra_forbidden",
+            ["body", "deep"],
+        ),
+        # The wire format ignores unknown fields: the missing model echoes the whole body.
+        (
+            "/v1/systemone",
+            wire_without_model(deep=nested(api.MAX_ECHO_DEPTH + 20)),
+            "missing",
+            ["body", "model"],
+        ),
+    ],
+    ids=["decisions", "systemone"],
+)
+def test_a_body_nested_deeper_than_the_echo_gets_the_depth_cut_in_its_422(
+    path, body, error_type, loc
+):
+    # Deep enough to be cut, in a field that no validator has to follow: pydantic reads a `state`
+    # nested 254 levels on Linux and macOS but only 98 on Windows.
+    client, backend = make_client()
+    response = client.post(path, json=body)
+    assert response.status_code == 422
+    (error,) = response.json()["detail"]
+    assert (error["type"], error["loc"]) == (error_type, loc)
+    assert "<nested too deeply>" in response.text
+    assert "bottom" not in response.text
+    assert backend.calls == []
+
+
+@pytest.mark.parametrize("path", ["/v1/decisions", "/v1/systemone"])
+def test_a_state_nested_beyond_what_pydantic_follows_is_a_422_on_every_platform(path):
+    # Below 254 levels on Linux and macOS, 98 on Windows, pydantic gives up (recursion_loop) and
+    # its errors echo what it was reading: a 422 with a list of errors, wherever the limit is.
+    client, backend = make_client(raise_server_exceptions=False)
+    body = {**(native() if path == "/v1/decisions" else wire()), "state": nested(300)}
+    response = client.post(path, json=body)
+    assert response.status_code == 422
+    assert {error["type"] for error in response.json()["detail"]} >= {"recursion_loop"}
+    assert backend.calls == []
 
 
 # lone surrogates ---------------------------------------------------------------------------------

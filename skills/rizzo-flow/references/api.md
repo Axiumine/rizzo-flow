@@ -154,7 +154,7 @@ Same shape as the public TypeSafe API (<https://docs.typesafe.ai/api>). Optional
 
 | Code | When |
 | --- | --- |
-| 422 | schema violation, too many options, state over 256 KB, prompt over `--ctx` tokens, a lone surrogate in any string (the JSON escape `"\ud800"`: valid JSON, but UTF-8 cannot encode it). Body `detail` says which; it echoes the offending input, with NaN, Infinity and lone surrogates written as text. Nothing is truncated. A body sent without `Content-Type: application/json` is a 422 too (`curl -d` alone sends a form); `detail` then reads "Input should be a valid dictionary or object to extract fields from". |
+| 422 | schema violation, too many options, state over 256 KB, prompt over `--ctx` tokens, a lone surrogate in any string (the JSON escape `"\ud800"`: valid JSON, but UTF-8 cannot encode it). Body `detail` says which; it echoes the offending input, cut at 100 levels of nesting (`"<nested too deeply>"`), with NaN, Infinity and lone surrogates written as text. Nothing is truncated. A body sent without `Content-Type: application/json` is a 422 too (`curl -d` alone sends a form); `detail` then reads "Input should be a valid dictionary or object to extract fields from". |
 | 401 | `/v1/systemone`, `/v1/models`: API key configured and bearer missing/wrong |
 | 400 | `/v1/systemone`: `model` is not `rizzo-latest`, the served id or `jev-*` |
 

@@ -22,24 +22,31 @@ from .responses import Response
 from .schema import Request
 
 API_KEY_ENV = "RIZZO_API_KEY"
+MAX_ECHO_DEPTH = 100  # levels of an echoed input that are kept; deeper ones would exhaust the stack
 PLAYGROUND = Path(__file__).with_name("playground.html")
 SNAKE = Path(__file__).with_name("snake.html")
 LOGO = Path(__file__).with_name("logo.png")
 
 
-def jsonable(value):
+def jsonable(value, depth=0):
     """The same structure, with whatever a JSON response cannot carry replaced by its text.
 
     Three things reach here: non-JSON floats (NaN, Infinity) and lone surrogates (`"\\ud800"`,
     which UTF-8 cannot encode), both accepted by `json.loads` on the way in and echoed back as
     the offending input, and the exception object a validator raised.
+
+    `json.loads` takes far more nesting than Python's recursion limit lets this follow, and the
+    encoder that writes the response has a limit of its own: what lies deeper than MAX_ECHO_DEPTH
+    is named, not echoed.
     """
     if isinstance(value, float):
         return value if isfinite(value) else f"<{value}>"
+    if isinstance(value, (dict, list, tuple)) and depth >= MAX_ECHO_DEPTH:
+        return "<nested too deeply>"
     if isinstance(value, dict):
-        return {jsonable(str(key)): jsonable(item) for key, item in value.items()}
+        return {jsonable(str(key)): jsonable(item, depth + 1) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
-        return [jsonable(item) for item in value]
+        return [jsonable(item, depth + 1) for item in value]
     if isinstance(value, (int, bool)) or value is None:
         return value
     # Text, or the text of anything else; a lone surrogate is written as its escape.

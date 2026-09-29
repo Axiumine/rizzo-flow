@@ -192,5 +192,6 @@ Validate requests offline with the JSON Schema (`uv run rizzo schema`, or `reque
 the repo). Errors: 422 = invalid request or over a limit (read `detail`; nothing is ever truncated
 silently; it also covers a lone surrogate such as the JSON escape `"\ud800"`, which UTF-8 cannot
 encode, and a body sent without `Content-Type: application/json`), 401 = `RIZZO_API_KEY` set on the
-server and bearer missing, 400 = unknown `model` on `/v1/systemone`. The interactive playground at
+server and bearer missing, 400 = unknown `model` on `/v1/systemone`. The `detail` of a 422 echoes
+the offending input, cut at 100 levels of nesting. The interactive playground at
 `http://127.0.0.1:8017/playground` is the quickest way to try a question design and copy the cURL.

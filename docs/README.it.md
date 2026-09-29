@@ -146,7 +146,8 @@ Un client scritto per l'API ospitata può puntare qui cambiando soltanto l'URL d
   valida o oltre un limite, una lone surrogate come l'escape JSON `"\ud800"` — JSON valido, ma UTF-8
   non la sa codificare — o un corpo mandato senza `Content-Type` JSON); 400
   (`{"error_type": "api_usage_error"}`) per un nome di modello che questo server non serve.
-  `/v1/decisions` risponde 422 allo stesso modo.
+  `/v1/decisions` risponde 422 allo stesso modo. Il `detail` di un 422 riporta l'input incriminato,
+  tagliato a 100 livelli di annidamento.
   Nessun rate limit, quindi niente 429/529.
 
 `/v1/decisions` resta l'API nativa completa: `numeric`, astensione, policy, logit e statistiche.
