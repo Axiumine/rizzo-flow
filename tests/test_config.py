@@ -4,12 +4,15 @@ Nothing touches the network and no weights are needed: `fetch` is replaced by a 
 token search runs in a temporary working directory with a temporary Hugging Face home.
 """
 
+import dataclasses
 import errno
+import hashlib
 import io
 import itertools
 from pathlib import Path
 
 import pytest
+from test_llama_release import Response
 
 from rizzo_flow import config, llama_release
 
@@ -273,3 +276,42 @@ def test_a_dotenv_file_in_another_encoding_does_not_stop_a_download(hub, fetched
     write_dotenv(hub, "HF_TOKEN=hf_x\r\n".encode("utf-16"))
     assert config.download_gguf(variant="base") == config.gguf_spec(variant="base").path
     assert [call["token"] for call in fetched] == [None]
+
+
+# --- downloads ---------------------------------------------------------------------------------
+
+
+def test_a_destination_that_is_a_directory_gets_the_file_under_its_pinned_name(hub, fetched):
+    (hub / "models").mkdir()
+    spec = config.gguf_spec("1.7b", "bf16", "base")
+    assert config.download_gguf("1.7b", "bf16", hub / "models", variant="base") == (
+        hub / "models" / spec.file
+    )
+    assert [call["target"] for call in fetched] == [hub / "models" / spec.file]
+    # A path that is not a directory is the file itself, whatever it is called or whether it exists.
+    (hub / "old.gguf").write_bytes(b"an earlier download")
+    for name in ("old.gguf", "new"):
+        assert config.download_gguf(destination=hub / name) == hub / name
+    assert [call["target"].name for call in fetched[1:]] == ["old.gguf", "new"]
+
+
+def test_downloading_into_an_existing_directory_leaves_one_file_and_no_partial_one(
+    hub, monkeypatch
+):
+    """The whole download used to land in `models.part` and fail on the rename onto a directory."""
+    payload = b"GGUF stand-in for the weights"
+    spec = dataclasses.replace(config.gguf_spec(), sha256=hashlib.sha256(payload).hexdigest())
+    monkeypatch.setitem(config.GGUF, ("4b", "q8_0", "flow"), spec)
+    requests = []
+
+    def urlopen(request, timeout=None):
+        requests.append(request.full_url)
+        return Response(payload)
+
+    monkeypatch.setattr(llama_release.urllib.request, "urlopen", urlopen)
+    (hub / "models").mkdir()
+    assert config.download_gguf(destination="models") == Path("models") / spec.file
+    assert (hub / "models" / spec.file).read_bytes() == payload
+    assert sorted(path.name for path in hub.iterdir()) == ["models"]  # no `models.part` beside it
+    assert [path.name for path in (hub / "models").iterdir()] == [spec.file]
+    assert requests == [spec.url]

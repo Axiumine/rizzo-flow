@@ -304,6 +304,8 @@ def download_gguf(size=DEFAULT_SIZE, quant=None, destination=None, progress=None
 
     spec = gguf_spec(size, quant, variant)
     target = Path(destination) if destination else spec.path
+    if target.is_dir():  # --destination models/: the file goes inside, under its pinned name
+        target = target / spec.file
     return fetch(spec.url, target, spec.sha256, progress, token=hf_token())
 
 

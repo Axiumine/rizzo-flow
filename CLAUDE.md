@@ -252,7 +252,8 @@ fine-tuned ha la chiave in più `weights: "flow"` (quelli base restano invariati
 cartella di lavoro, token di `hf auth login`), mandato solo al primo host e non nei redirect;
 401/403/404 falliscono subito. Il `.env` lo legge `config.parse_dotenv` (prefisso `export`, virgolette,
 commento finale ` #`; UTF-8 con BOM e `errors="replace"`, così un commento in una code page o un file
-UTF-16 non fermano un download che non chiede token).
+UTF-16 non fermano un download che non chiede token). `rizzo download --destination <cartella>`
+mette il file dentro la cartella, col nome fissato.
 typed-decisions test (`scripts/typed_decisions.py`, report in `results/local-typed-decisions/`,
 ignorati da git), stessa macchina RTX 5060 Ti, Q8_0: 4B 0.574 → **0.648** (+0.074 [+0.050,
 +0.101]), KL 2.90 → 0.45, Brier 0.480 → 0.205, ECE 0.349 → 0.112; 1.7B 0.530 → 0.544 (rumore),
