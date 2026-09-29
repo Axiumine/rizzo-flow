@@ -20,7 +20,14 @@ from typing import Any
 import pytest
 
 from rizzo_flow import llama_cpp, llama_release
-from rizzo_flow.llama_cpp import LOG_CALLBACK, SIGNATURES, ContextParams, Library, ModelParams
+from rizzo_flow.llama_cpp import (
+    LOG_CALLBACK,
+    SIGNATURES,
+    ContextParams,
+    Library,
+    ModelParams,
+    Session,
+)
 
 GIB = 1 << 30
 MODEL_BYTES = 4 * GIB
@@ -425,6 +432,11 @@ def exactly(message):
     return f"^{re.escape(message)}$"
 
 
+def load(native, **options):
+    """A session on the fake runtime, on the device `auto` picks unless told otherwise."""
+    return Session.load(native.gguf, directory=native.directory, **options)
+
+
 # --- the library ----------------------------------------------------------------------------------
 
 
@@ -499,3 +511,27 @@ def test_the_runtime_folder_is_the_resolved_one_even_when_the_library_sits_behin
     except OSError:
         pytest.skip("this account cannot create symbolic links")
     assert llama_cpp._runtime_folder(outer) == real.resolve()
+
+
+def test_an_unknown_kv_type_does_not_leave_a_model_loaded(runtime):
+    with pytest.raises(ValueError, match=exactly("KV cache type must be one of: f16, q8_0, q4_0")):
+        load(runtime, kv_type="f32")
+    assert runtime.model_loads == []  # refused before the weights were touched
+    assert runtime.model_alive is False
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"threads": "x"},
+        {"threads": 2.5},
+        {"n_ctx": 1.5},
+        {"n_batch": 1.5},
+        {"n_seq_max": "5"},
+    ],
+)
+def test_an_option_that_cannot_be_set_is_refused_before_the_model_is_loaded(runtime, options):
+    with pytest.raises(TypeError):
+        load(runtime, **options)
+    assert runtime.model_loads == []  # the ~10 s load of the weights was never started
+    assert runtime.model_alive is False

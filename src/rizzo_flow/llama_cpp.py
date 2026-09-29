@@ -363,19 +363,11 @@ class Session:
         threads: int | None = None,
         kv_type: str | None = None,
     ) -> "Session":
+        if kv_type and kv_type not in KV_TYPES:  # before anything is loaded, not after the model
+            raise ValueError(f"KV cache type must be one of: {', '.join(KV_TYPES)}")
         library = Library.open(directory)
         chosen = choose_device(library.devices(), device)
         idle_free = library.free_bytes(chosen) if chosen else None
-        model_params = library.llama_model_default_params()
-        # A NULL-terminated device list; empty means CPU only. One device, never a split:
-        # a second GPU or an integrated one would otherwise receive part of the layers.
-        targets = (c_void_p * 2)(chosen.handle if chosen else None, None)
-        model_params.devices = targets
-        model_params.split_mode = SPLIT_MODE_NONE
-        model_params.n_gpu_layers = GPU_LAYERS if chosen else 0
-        model = library.llama_model_load_from_file(str(gguf).encode(), model_params)
-        if not model:
-            raise ValueError(f"llama.cpp cannot load {gguf}")
         params = library.llama_context_default_params()
         params.n_ctx = n_ctx
         params.n_batch = min(n_batch, n_ctx)
@@ -397,6 +389,17 @@ class Session:
         params.no_perf = True
         if threads:
             params.n_threads = params.n_threads_batch = threads
+        # The weights come last: a setting that cannot be applied leaves no model loaded.
+        model_params = library.llama_model_default_params()
+        # A NULL-terminated device list; empty means CPU only. One device, never a split:
+        # a second GPU or an integrated one would otherwise receive part of the layers.
+        targets = (c_void_p * 2)(chosen.handle if chosen else None, None)
+        model_params.devices = targets
+        model_params.split_mode = SPLIT_MODE_NONE
+        model_params.n_gpu_layers = GPU_LAYERS if chosen else 0
+        model = library.llama_model_load_from_file(str(gguf).encode(), model_params)
+        if not model:
+            raise ValueError(f"llama.cpp cannot load {gguf}")
         context = library.llama_init_from_model(model, params)
         if not context:
             library.llama_model_free(model)

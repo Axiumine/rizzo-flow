@@ -90,7 +90,8 @@ inferenza: liberarne il contesto sotto di lui sarebbe un use after free).
   log di llama.cpp filtrati a warning/errori (`RIZZO_LLAMA_LOG=1` per vederli tutti).
   `Library.open` tiene un'istanza per cartella *risolta* del runtime (un pacchetto può annidare la
   libreria di un livello: due nomi per lo stesso runtime non ne caricano due copie, e i backend ggml
-  si registrano globalmente).
+  si registrano globalmente); `Session.load` valida `--kv-type` e prepara tutti i parametri prima di
+  caricare i pesi (un'impostazione che non si può applicare non lascia un modello caricato).
   `backend_llama.py`: `LlamaTokenizer` rende il chat template del GGUF con jinja2 come fa
   transformers (`trim_blocks`, `lstrip_blocks`, `raise_exception`; un template che non compila o non
   gira, per jinja2 o per un errore di Python come `{{ 1 // 0 }}`, è un `ValueError` con il motivo, non
