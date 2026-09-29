@@ -168,7 +168,8 @@ def test_archives_cannot_write_outside_the_destination(tmp_path):
     archive_tar(tmp_path / "bad.tar.gz", {"top/../../escaped.so": b"x"})
     with pytest.raises(tarfile.FilterError):
         release.unpack(tmp_path / "bad.tar.gz", tmp_path / "out")
-    assert not (tmp_path / "escaped.dll").exists() and not (tmp_path / "escaped.so").exists()
+    assert not (tmp_path / "escaped.dll").exists()
+    assert not (tmp_path / "escaped.so").exists()
 
 
 def test_fetch_verifies_and_never_keeps_a_bad_file(tmp_path):
@@ -178,10 +179,12 @@ def test_fetch_verifies_and_never_keeps_a_bad_file(tmp_path):
     target = tmp_path / "cache" / "file.bin"
     seen = []
     release.fetch(source.as_uri(), target, good, lambda *call: seen.append(call))
-    assert target.read_bytes() == b"weights" and seen[-1][1] == 7
+    assert target.read_bytes() == b"weights"
+    assert seen[-1][1] == 7
     with pytest.raises(ValueError, match="sha256 mismatch"):
         release.fetch(source.as_uri(), tmp_path / "other.bin", "0" * 64)
-    assert not (tmp_path / "other.bin").exists() and not (tmp_path / "other.bin.part").exists()
+    assert not (tmp_path / "other.bin").exists()
+    assert not (tmp_path / "other.bin.part").exists()
     source.unlink()  # a verified copy is reused without touching the source
     assert release.fetch(source.as_uri(), target, good) == target
 
@@ -444,7 +447,8 @@ def test_install_and_locate(tmp_path, monkeypatch):
     monkeypatch.setattr(release, "PACKAGES", packages)
     monkeypatch.setattr(release, "BASE_URL", served.as_uri())
     directory = release.install("auto")
-    assert directory == release.install_dir("vulkan") and (directory / "ggml.dll").is_file()
+    assert directory == release.install_dir("vulkan")
+    assert (directory / "ggml.dll").is_file()
     assert release.install("auto") == directory  # idempotent
     release.install("cpu")
     assert release.installed() == ["vulkan", "cpu"]

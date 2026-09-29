@@ -41,7 +41,7 @@ def test_numeric_real_anchors_and_nonuniform_spacing():
 
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
 def test_no_nonfinite_numbers(bad):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="At least two finite logits"):
         softmax([0, bad])
     with pytest.raises(ValidationError):
         question(
@@ -103,10 +103,10 @@ def test_low_probability_policy():
 
 def test_invalid_shape_and_temperature():
     q = question("boolean")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Logit count does not match"):
         decode(q, [0, 1])
     for t in [0, -1, float("nan")]:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Temperature must be finite and positive"):
             softmax([1, 2], t)
 
 

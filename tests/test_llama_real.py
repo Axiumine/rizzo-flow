@@ -37,8 +37,10 @@ def backend():
 
 def test_identity_is_pinned(backend):
     meta = backend.metadata
-    assert meta["runtime"] == "llama.cpp" and meta["llama_cpp_release"] == llama_release.RELEASE
-    assert meta["gguf_source"] and meta["precision"] == "q8_0"
+    assert meta["runtime"] == "llama.cpp"
+    assert meta["llama_cpp_release"] == llama_release.RELEASE
+    assert meta["gguf_source"]
+    assert meta["precision"] == "q8_0"
     assert meta["source"] in {spec.repo for spec in MODELS.values()}
 
 
@@ -75,7 +77,8 @@ def test_prompt_matches_the_original_checkpoint(backend):
 
 def test_answer_letters_are_single_tokens(backend):
     ids = [backend.tokenizer.encode(letter) for letter in string.ascii_uppercase]
-    assert all(len(found) == 1 for found in ids) and len({found[0] for found in ids}) == 26
+    assert all(len(found) == 1 for found in ids)
+    assert len({found[0] for found in ids}) == 26
 
 
 def test_shared_prefix_agrees_with_direct(backend):
@@ -85,9 +88,8 @@ def test_shared_prefix_agrees_with_direct(backend):
     request = json.loads(Path("examples/ticket.json").read_text(encoding="utf-8"))
     shared = engine.decide({**request, "mode": "shared"})
     direct = engine.decide({**request, "mode": "direct"})
-    assert (
-        shared["timing"]["shared_prefix_tokens"] > 0 and shared["timing"]["generated_tokens"] == 0
-    )
+    assert shared["timing"]["shared_prefix_tokens"] > 0
+    assert shared["timing"]["generated_tokens"] == 0
     for key, answer in shared["answers"].items():
         other = direct["answers"][key]["probabilities"]
         assert max(answer["probabilities"], key=answer["probabilities"].get) == max(

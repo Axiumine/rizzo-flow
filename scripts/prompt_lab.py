@@ -16,6 +16,8 @@ from collections import defaultdict
 from pathlib import Path
 
 SEMIF = Path(os.environ.get("SEMIF_DIR", Path.home() / "Git-projects" / "SemIf"))
+# SemIf's scorer (`evaluate.py`) is imported from its checkout, which goes first on the path;
+# every import below stays after that on purpose, hence the E402 markers.
 sys.path[:0] = [str(SEMIF / "benchmarks")]
 import evaluate
 
@@ -35,9 +37,16 @@ def split(rows, perturbed):
     for row in rows:
         families[row["family"]].add(row["group_id"])
     dev = {g for groups in families.values() for i, g in enumerate(sorted(groups)) if i % 2 == 0}
-    part = lambda rs, key, keep: [r for r in rs if (key(r) in dev) == keep]
-    source = lambda r: r["provenance"]["source_group_id"]
-    group = lambda r: r["group_id"]
+
+    def part(rs, key, keep):
+        return [r for r in rs if (key(r) in dev) == keep]
+
+    def source(r):
+        return r["provenance"]["source_group_id"]
+
+    def group(r):
+        return r["group_id"]
+
     return {
         "dev": (part(rows, group, True), part(perturbed, source, True)),
         "held": (part(rows, group, False), part(perturbed, source, False)),
@@ -62,7 +71,7 @@ def V2_QUESTION(instruction, descriptions):
         "question": instruction,
         "options": [
             {"letter": letter, "description": description}
-            for letter, description in zip(string.ascii_uppercase, descriptions)
+            for letter, description in zip(string.ascii_uppercase, descriptions, strict=False)
         ],
     }
     return "\n" + json.dumps(payload, ensure_ascii=False)
@@ -88,7 +97,9 @@ def text_state(state):
 
 
 def mcq(instruction, descriptions, closing="Answer with the letter of the best option."):
-    lines = [f"{letter}. {d}" for letter, d in zip(string.ascii_uppercase, descriptions)]
+    lines = [
+        f"{letter}. {d}" for letter, d in zip(string.ascii_uppercase, descriptions, strict=False)
+    ]
     tail = f"\n\nQuestion: {instruction}\n\nOptions:\n" + "\n".join(lines)
     return tail + (f"\n\n{closing}" if closing else "")
 
@@ -172,11 +183,14 @@ def score(engine, base, perturbed, smoke):
         }
     # Stability: does the semantic choice survive each meaning-preserving perturbation?
     by_id = {p["id"]: p for p in predictions["base"]}
+
+    def pick(x):
+        return x["option_ids"][x["probabilities"].index(max(x["probabilities"]))]
+
     flips = defaultdict(int)
-    for row, p in zip(perturbed, predictions["perturbed"]):
+    for row, p in zip(perturbed, predictions["perturbed"], strict=True):
         ref = by_id.get(row["provenance"]["base_id"])
         if ref:
-            pick = lambda x: x["option_ids"][x["probabilities"].index(max(x["probabilities"]))]
             flips[row["provenance"]["variant"]] += pick(ref) != pick(p)
     report["flips"] = dict(flips)
     summary = smoke_evaluate(engine, smoke)["summary"]

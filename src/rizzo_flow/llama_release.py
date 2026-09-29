@@ -298,11 +298,13 @@ def fetch(
         if have:
             headers["Range"] = f"bytes={have}-"
         try:
+            # Callers pass the pinned https addresses of this package (tests pass local ones),
+            # and only a matching sha256 keeps the download, so a scheme audit adds nothing.
             request = urllib.request.Request(url, headers=headers)
             if token:
                 request.add_unredirected_header("Authorization", f"Bearer {token}")
             with urllib.request.urlopen(request, timeout=120) as response:
-                resumed = have and getattr(response, "status", 200) == 206
+                resumed = have and response.status == 206
                 total = int(response.headers.get("Content-Length") or 0) + (have if resumed else 0)
                 done = have if resumed else 0
                 with partial.open("ab" if resumed else "wb") as out:
@@ -352,9 +354,9 @@ def unpack(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     if archive.name.endswith(".zip"):
         with zipfile.ZipFile(archive) as bundle:
-            for member in bundle.namelist():
-                if not (destination / member).resolve().is_relative_to(destination):
-                    raise ValueError(f"{archive.name}: unsafe member {member}")
+            for name in bundle.namelist():
+                if not (destination / name).resolve().is_relative_to(destination):
+                    raise ValueError(f"{archive.name}: unsafe member {name}")
             bundle.extractall(destination)
     else:
         with tarfile.open(archive) as bundle:
@@ -364,10 +366,10 @@ def unpack(archive: Path, destination: Path) -> None:
                 inner = member.name.split("/", 1)[1:]
                 if not inner or not inner[0]:
                     continue
-                member = copy.copy(member)
-                member.name = inner[0]
+                flattened = copy.copy(member)
+                flattened.name = inner[0]
                 # The `data` filter rejects absolute paths, links and devices leaving the tree.
-                bundle.extract(member, destination, filter="data")
+                bundle.extract(flattened, destination, filter="data")
 
 
 def install(accelerator: str = "auto", progress=None) -> Path:

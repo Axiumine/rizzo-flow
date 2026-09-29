@@ -9,7 +9,7 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "semif_compare.py"
 # What str.splitlines() breaks a line at besides "\n" and "\r", and json.dumps(ensure_ascii=False)
-# does not escape. Written by name: ruff format turns a " " escape into the bare character.
+# does not escape. Written by name: ruff format turns a "\u2028" escape into the bare character.
 SEPARATORS = {
     "nel": "\N{NEXT LINE}",
     "ls": "\N{LINE SEPARATOR}",

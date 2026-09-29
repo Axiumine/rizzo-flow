@@ -90,7 +90,8 @@ class SparkBackend:
         mx.set_cache_limit(256 * 1024**2)
         started = time.perf_counter()
         # Hash checkpoint contents once at startup for auditability and calibration binding.
-        files = sorted(path.glob("*.safetensors")) + [
+        files = [
+            *sorted(path.glob("*.safetensors")),
             path / "config.json",
             path / "tokenizer.json",
             path / "tokenizer_config.json",

@@ -103,10 +103,12 @@ def test_shared_prefills_once_and_packs_suffixes_without_padding():
     # Each answer is read at the last position of its own question.
     assert logits == {"short": [11.065, 11.066], "mid": [12.065, 12.066], "long": [13.065, 13.066]}
     assert engine.session.cells == {0: list(range(10))}  # the prefix survives every microbatch
-    assert timing["batches"] == 2 and timing["shared_prefix_tokens"] == 10
+    assert timing["batches"] == 2
+    assert timing["shared_prefix_tokens"] == 10
     assert timing["evaluated_tokens_including_padding"] == 10 + 5 + 4
     assert timing["logical_input_tokens"] == 14 + 12 + 13
-    assert timing["generated_tokens"] == 0 and "peak_device_bytes" not in timing
+    assert timing["generated_tokens"] == 0
+    assert "peak_device_bytes" not in timing
 
 
 def test_direct_recomputes_every_question_from_an_empty_cache():
@@ -116,8 +118,10 @@ def test_direct_recomputes_every_question_from_an_empty_cache():
     logits, timing = engine.score(prefix, jobs, "direct")
     assert [c[0] for c in engine.session.calls] == ["clear", "decode", "clear", "decode"]
     assert engine.session.calls[3] == ("decode", [100, 101, 2, 3], [0, 1, 2, 3], [0] * 4, [3])
-    assert logits["a"][0] == pytest.approx(2.065) and logits["b"][0] == pytest.approx(3.065)
-    assert timing["shared_prefix_tokens"] == 0 and timing["prefill_seconds"] == 0.0
+    assert logits["a"][0] == pytest.approx(2.065)
+    assert logits["b"][0] == pytest.approx(3.065)
+    assert timing["shared_prefix_tokens"] == 0
+    assert timing["prefill_seconds"] == 0.0
 
 
 def test_a_single_question_takes_one_pass_even_in_shared_mode():
@@ -128,7 +132,8 @@ def test_a_single_question_takes_one_pass_even_in_shared_mode():
         ("decode", [100, 101, 1, 2], [0, 1, 2, 3], [0] * 4, [3]),
     ]
     assert logits["only"][0] == pytest.approx(3.065)
-    assert timing["shared_prefix_tokens"] == 0 and timing["batches"] == 1
+    assert timing["shared_prefix_tokens"] == 0
+    assert timing["batches"] == 1
 
 
 def test_inputs_longer_than_one_call_are_fed_in_slices(monkeypatch):
@@ -178,7 +183,8 @@ def test_tokenizer_renders_like_transformers_and_encodes_with_the_gguf():
     )
     assert text == "<system>S<user>U<bot></think>"  # block lines and indentation leave no trace
     assert tokenizer.encode("AB", add_special_tokens=False) == [65, 66]
-    assert tokenizer.pad_token_id is None and tokenizer.eos_token_id == 2
+    assert tokenizer.pad_token_id is None
+    assert tokenizer.eos_token_id == 2
     with pytest.raises(ValueError, match="No messages"):
         tokenizer.apply_chat_template([], tokenize=False)
     with pytest.raises(ValueError, match="encode"):
@@ -287,7 +293,7 @@ def test_loader_rejects_options_of_the_other_backend(tmp_path):
         loader.load_backend("mlx", device="vulkan")
     with pytest.raises(ValueError, match="--kv-type"):
         loader.load_backend("mlx", kv_type="q8_0")
-    with pytest.raises(ValueError, match=".gguf"):
+    with pytest.raises(ValueError, match=r"\.gguf"):
         loader.load_backend("llama", model=tmp_path)
     with pytest.raises(ValueError, match="rizzo download"):
         loader.load_backend("llama", model=tmp_path / "missing.gguf")
@@ -304,7 +310,8 @@ def test_loader_rejects_options_of_the_other_backend(tmp_path):
 def test_fine_tuned_weights_are_the_default_and_pinned():
     spec = config.gguf_spec()
     assert (spec.size, spec.quant, spec.variant) == ("4b", "q8_0", "flow")
-    assert spec.repo == "rizzoaiacademy/rizzo-flow" and len(spec.revision) == 40
+    assert spec.repo == "rizzoaiacademy/rizzo-flow"
+    assert len(spec.revision) == 40
     assert config.gguf_spec("1.7b").repo == "rizzoaiacademy/rizzo-flow-1.7b"
     assert config.gguf_spec("4b", "q4_k_m", "base").repo == "XHToken/Spark-X2.5-4B-GGUF"
     assert len({spec.sha256 for spec in config.GGUF.values()}) == len(config.GGUF)
@@ -313,7 +320,8 @@ def test_fine_tuned_weights_are_the_default_and_pinned():
     assert config.checkpoint_path() == config.FLOW_CHECKPOINTS["4b"].path == spec.path.parent
     assert config.checkpoint_path("1.7b", "base") == config.MODELS["1.7b"].path
     for flow in config.FLOW_CHECKPOINTS.values():
-        assert flow.weights and all(len(sha) == 64 for sha in flow.weights.values())
+        assert flow.weights
+        assert all(len(sha) == 64 for sha in flow.weights.values())
         assert not set(flow.weights) & set(config.CHECKPOINT_FILES)
 
 

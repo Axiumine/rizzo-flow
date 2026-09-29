@@ -90,7 +90,7 @@ def decode(question: Question, logits: list[float], temperature: float = 1.0) ->
     distribution = {c.id: p for c, p in zip(choices, ps, strict=True)}
     unavailable_ids = {UNKNOWN, BELOW, ABOVE}
     valid = [(c, p) for c, p in zip(choices, ps, strict=True) if c.id not in unavailable_ids]
-    unavailable = math.fsum(p for c, p in zip(choices, ps) if c.id in unavailable_ids)
+    unavailable = math.fsum(p for c, p in zip(choices, ps, strict=True) if c.id in unavailable_ids)
     available = math.fsum(p for _, p in valid)
     winner = choices[max(range(len(ps)), key=ps.__getitem__)].id
     top = max(ps)

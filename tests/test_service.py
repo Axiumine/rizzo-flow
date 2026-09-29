@@ -130,7 +130,8 @@ def test_non_json_floats_are_a_client_error(payload):
             response = client.post("/v1/decisions", content=body, headers=headers)
             assert response.status_code == 422, body
             detail = response.json()["detail"]
-            assert isinstance(detail, list) and detail  # still the usual shape, and serializable
+            assert isinstance(detail, list)  # still the usual shape, and serializable
+            assert detail
 
 
 def test_temperature_fit_and_model_binding():

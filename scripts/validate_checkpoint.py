@@ -64,9 +64,12 @@ def main():
     delta = projection_delta(backend, jobs[0]) if args.backend == "mlx" else None
     print(f"Projection max logit delta: {delta}", flush=True)
     with TestClient(create_app(engine)) as client:
-        assert client.get("/health").status_code == 200
+        health = client.get("/health")
+        if health.status_code != 200:
+            raise AssertionError(f"GET /health returned {health.status_code}")
         response = client.post("/v1/decisions", json=request.model_dump())
-        assert response.status_code == 200, response.text
+        if response.status_code != 200:
+            raise AssertionError(response.text)
         write_json(response.json(), out / "api-example.json")
     # State long enough to cross Spark's 512-token rotating attention window.
     long_request = request.model_dump()

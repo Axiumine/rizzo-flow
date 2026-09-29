@@ -25,6 +25,7 @@ def call(url, body=None, key=None, timeout=300):
         sys.exit(f"Unsupported server URL {url!r}: it has to start with http:// or https://")
     headers = {"Content-Type": "application/json"}
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode()
+    # S310: the scheme was checked above.
     request = urllib.request.Request(url, data, headers, method="GET" if data is None else "POST")
     if key:
         # Not in `headers`: urllib repeats those on every redirect, to whatever host it leads to.

@@ -175,8 +175,8 @@ def stability(evaluate, gold, base, perturb_gold, perturbed):
         shifts, flips = [], []
         for row in rows:
             reference, candidate = base[row["provenance"]["base_id"]], perturbed[row["id"]]
-            left = dict(zip(reference["option_ids"], reference["probabilities"]))
-            right = dict(zip(candidate["option_ids"], candidate["probabilities"]))
+            left = dict(zip(reference["option_ids"], reference["probabilities"], strict=True))
+            right = dict(zip(candidate["option_ids"], candidate["probabilities"], strict=True))
             if set(left) != set(right):
                 raise ValueError("Semantic option IDs changed")
             shifts.append(max(abs(left[key] - right[key]) for key in left))
@@ -308,7 +308,9 @@ def main():
         report["shape"]["shared_vs_direct"] = {
             "rows": len(pairs),
             "argmax_flips": sum(a.index(max(a)) != b.index(max(b)) for a, b in pairs),
-            "max_probability_difference": max(abs(x - y) for a, b in pairs for x, y in zip(a, b)),
+            "max_probability_difference": max(
+                abs(x - y) for a, b in pairs for x, y in zip(a, b, strict=True)
+            ),
         }
     write(args.output / "report.json", report)
     print(json.dumps({k: report[k] for k in ("quality", "shape")}, indent=2, default=str)[:3000])

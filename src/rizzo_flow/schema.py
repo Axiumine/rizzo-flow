@@ -114,7 +114,8 @@ class NumericQuestion(BaseQuestion):
 
     @model_validator(mode="after")
     def increasing_anchors(self):
-        if any(b.value <= a.value for a, b in zip(self.anchors, self.anchors[1:])):
+        # Successive pairs: the two sequences differ in length by design.
+        if any(b.value <= a.value for a, b in zip(self.anchors, self.anchors[1:], strict=False)):
             raise ValueError("Numeric anchors must be strictly increasing")
         self.require_slots(self.anchors, reserved=2)
         return self
