@@ -218,6 +218,7 @@ def test_interrupted_download_resumes_where_it_stopped(tmp_path):
         target = release.fetch(url, tmp_path / "weights.gguf", hashlib.sha256(payload).hexdigest())
     finally:
         server.shutdown()
+        server.server_close()
     assert target.read_bytes() == payload
     assert requests == [None, f"bytes={len(payload) // 3}-"]
 
@@ -425,6 +426,7 @@ def test_token_goes_to_the_first_host_only_and_denials_fail_fast(tmp_path):
             release.fetch(f"{base}/denied.gguf", tmp_path / "d.gguf", digest)
     finally:
         server.shutdown()
+        server.server_close()
     assert target.read_bytes() == payload
     assert seen[:2] == [("/resolve/weights.gguf", "Bearer t"), ("/cdn/weights.gguf", None)]
     assert len(seen) == 3  # a denial is not retried

@@ -39,7 +39,15 @@ cpu = [
   "huggingface-hub>=1.0",  # config.download_model imports it directly
   "spark-mlx-llm @ git+https://github.com/XHToken/Spark-MLX-LLM.git@de2b4379fa1e2f2e1f99d84c83f0e008f651d86c",
 ]
-test = ["pytest>=8.4,<10", "httpx>=0.28,<1", "ruff>=0.12"]
+# Development: tests, linter, formatter, type checker, dependency checker.
+test = [
+  "pytest>=8.4,<10",
+  "httpx>=0.28,<1",
+  "ruff>=0.16",
+  "pytest-timeout>=2.4",
+  "mypy>=2.3",
+  "deptry>=0.25",
+]
 
 [tool.uv]
 # mlx-cuda-13 and mlx-cpu ship the same library files, so they cannot share an environment.
@@ -59,7 +67,79 @@ allow-direct-references = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+timeout = 120
+# Warnings raised or triggered by this package or its tests fail the run; warnings that
+# third-party packages raise among themselves (at import, say) are only reported. So do the two
+# ways an error escapes the test that caused it: an exception in a finalizer (a leaked file whose
+# ResourceWarning is an error above) and one in a thread.
+filterwarnings = [
+  "error::Warning:rizzo_flow",
+  "error::Warning:test_",
+  "error::Warning:conftest",
+  "error::pytest.PytestUnraisableExceptionWarning",
+  "error::pytest.PytestUnhandledThreadExceptionWarning",
+]
 markers = ["mlx: small real Spark architecture tests; requires MLX", "integration: requires downloaded Spark weights"]
 
 [tool.ruff]
 line-length = 100
+# training/ is left out for now: it has 16 findings of the rules below (S310, S311, B905,
+# PERF401, E731) that have to be settled before it can be checked.
+extend-exclude = ["results", ".research", "models", "runtimes", "training"]
+
+[tool.ruff.lint]
+# Ruff's defaults (E4, E7, E9, F) plus the families that catch bugs, insecure calls and
+# outdated idioms. PLW1514 is a preview rule, enabled alone: files are always opened as UTF-8.
+select = [
+  "E4", "E7", "E9", "F", "W",
+  "A", "ASYNC", "B", "BLE", "C4", "DTZ", "EXE", "FLY", "FURB", "G", "I", "ICN", "ISC", "LOG",
+  "PERF", "PGH", "PIE", "PLE", "PLW", "PT", "RET", "RSE", "RUF", "S", "SIM", "SLOT", "T10",
+  "TID", "UP", "YTT",
+  "PLW1514",
+]
+preview = true
+explicit-preview-rules = true
+allowed-confusables = ["–"]  # en dash in "A–Z"
+
+# Every subprocess call would be flagged (rules S603, S607); they are reviewed by hand.
+ignore = ["S603", "S607"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108"]  # asserts, fake tokens and temporary paths
+
+[tool.mypy]
+# Not 3.11: the stubs of numpy (reached through MLX's, which mypy always reads) use 3.12 syntax.
+# Ruff still targets 3.11 (requires-python) and rejects newer syntax in our code.
+python_version = "3.12"
+mypy_path = "src"  # the package itself, also when mypy gets an explicit file list
+files = ["src", "tests", "scripts", "skills/rizzo-flow/scripts"]
+plugins = ["pydantic.mypy"]
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+strict_equality = true
+extra_checks = true
+enable_error_code = [
+  "ignore-without-code", "redundant-expr", "truthy-bool", "possibly-undefined", "unused-awaitable",
+]
+
+[[tool.mypy.overrides]]
+# Optional MLX runtime and its dependencies: not installed everywhere.
+module = ["mlx.*", "mlx_lm.*", "spark_mlx_llm.*", "huggingface_hub.*", "transformers.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# SemIf's own modules, imported from its checkout (.research/SemIf) at run time.
+module = ["evaluate", "semif_phase1"]
+ignore_missing_imports = true
+
+[tool.deptry]
+known_first_party = ["rizzo_flow"]
+optional_dependencies_dev_groups = ["test"]
+package_module_name_map = { spark-mlx-llm = "spark_mlx_llm" }
+
+[tool.deptry.per_rule_ignores]
+# Installed for the MLX runtime, imported by spark-mlx-llm and mlx rather than by this package.
+DEP002 = ["mlx-lm", "mlx-cuda-13", "mlx-cpu"]

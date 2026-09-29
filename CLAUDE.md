@@ -37,7 +37,7 @@ uv sync --extra test --locked                     # llama.cpp non richiede extra
 .venv/bin/pytest -q                               # 82 test (+6 saltati), nessun peso richiesto
 RIZZO_REAL=1 .venv/bin/pytest -q -m integration   # 6 test con runtime e GGUF reali (il più piccolo Q8_0 presente)
 .venv/bin/pytest tests/test_compat.py::test_systemone_wire_shape   # test singolo
-.venv/bin/ruff check src tests scripts && .venv/bin/ruff format --check src tests scripts
+.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy
 .venv/bin/rizzo serve                             # API + playground su 127.0.0.1:8017 (MLX: --backend mlx --bits 8)
 .venv/bin/rizzo decide examples/ticket.json       # --quant q8_0|q4_k_m|bf16, --device auto|gpu|cpu|cuda|vulkan|metal|rocm|sycl
 .venv/bin/rizzo evaluate benchmarks/smoke.jsonl --compare-modes --output results/local-x.json

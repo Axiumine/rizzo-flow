@@ -669,7 +669,7 @@ did not change with the runtime: llama.cpp receives byte-identical prompts and t
 uv sync --locked --extra test
 uv run pytest -q                        # 82 tests, no weights needed
 RIZZO_REAL=1 uv run pytest -q -m integration   # 4 more, on the real runtime and GGUF weights
-uv run ruff check src tests scripts
+uv run ruff check . && uv run ruff format --check . && uv run mypy   # lint, format, types
 uv run rizzo evaluate benchmarks/smoke.jsonl --compare-modes --output results/local-smoke.json
 uv run python scripts/semif_compare.py --system rizzo --semif ../SemIf --output results/local-semif
 uv run python scripts/semif_report.py results/local-semif --semif ../SemIf   # held-out halves, paired differences

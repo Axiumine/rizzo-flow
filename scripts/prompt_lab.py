@@ -19,14 +19,14 @@ SEMIF = Path(os.environ.get("SEMIF_DIR", Path.home() / "Git-projects" / "SemIf")
 # SemIf's scorer (`evaluate.py`) is imported from its checkout, which goes first on the path;
 # every import below stays after that on purpose, hence the E402 markers.
 sys.path[:0] = [str(SEMIF / "benchmarks")]
-import evaluate
-from semif_compare import dev_groups
+import evaluate  # noqa: E402
+from semif_compare import dev_groups  # noqa: E402
 
-from rizzo_flow import prompts
-from rizzo_flow.backend import SparkBackend
-from rizzo_flow.cli import read_jsonl
-from rizzo_flow.engine import Engine
-from rizzo_flow.evaluation import evaluate as smoke_evaluate
+from rizzo_flow import prompts  # noqa: E402
+from rizzo_flow.backend import SparkBackend  # noqa: E402
+from rizzo_flow.cli import read_jsonl  # noqa: E402
+from rizzo_flow.engine import Engine  # noqa: E402
+from rizzo_flow.evaluation import evaluate as smoke_evaluate  # noqa: E402
 
 
 def split(rows, perturbed):

@@ -300,10 +300,10 @@ def fetch(
         try:
             # Callers pass the pinned https addresses of this package (tests pass local ones),
             # and only a matching sha256 keeps the download, so a scheme audit adds nothing.
-            request = urllib.request.Request(url, headers=headers)
+            request = urllib.request.Request(url, headers=headers)  # noqa: S310
             if token:
                 request.add_unredirected_header("Authorization", f"Bearer {token}")
-            with urllib.request.urlopen(request, timeout=120) as response:
+            with urllib.request.urlopen(request, timeout=120) as response:  # noqa: S310
                 resumed = have and response.status == 206
                 total = int(response.headers.get("Content-Length") or 0) + (have if resumed else 0)
                 done = have if resumed else 0
@@ -357,7 +357,7 @@ def unpack(archive: Path, destination: Path) -> None:
             for name in bundle.namelist():
                 if not (destination / name).resolve().is_relative_to(destination):
                     raise ValueError(f"{archive.name}: unsafe member {name}")
-            bundle.extractall(destination)
+            bundle.extractall(destination)  # noqa: S202  (zip members, all checked above)
     else:
         with tarfile.open(archive) as bundle:
             for member in bundle:

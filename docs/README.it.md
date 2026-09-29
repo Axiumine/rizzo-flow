@@ -304,7 +304,7 @@ stato misurato sull'intero benchmark).
 
 ```bash
 .venv/bin/pytest -q
-.venv/bin/ruff check src tests scripts
+.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy   # lint, formato, tipi
 .venv/bin/rizzo evaluate benchmarks/smoke.jsonl --compare-modes --output results/my-smoke.json
 .venv/bin/rizzo evaluate benchmarks/perturbations.jsonl --output results/my-perturbations.json
 .venv/bin/python scripts/validate_checkpoint.py --output results/my-q8-validation

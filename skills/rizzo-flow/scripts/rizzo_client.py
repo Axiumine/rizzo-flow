@@ -26,12 +26,12 @@ def call(url, body=None, key=None, timeout=300):
     headers = {"Content-Type": "application/json"}
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode()
     # S310: the scheme was checked above.
-    request = urllib.request.Request(url, data, headers, method="GET" if data is None else "POST")
+    request = urllib.request.Request(url, data, headers, method="GET" if data is None else "POST")  # noqa: S310
     if key:
         # Not in `headers`: urllib repeats those on every redirect, to whatever host it leads to.
         request.add_unredirected_header("Authorization", f"Bearer {key}")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             return json.load(response)
     except urllib.error.HTTPError as error:
         detail = error.read().decode(errors="replace")
