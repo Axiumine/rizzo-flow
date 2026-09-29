@@ -164,6 +164,13 @@ def main():
     try:
         if args.command == "download":
             if args.backend == "mlx":
+                if args.only == "runtime":
+                    # Refused before anything is fetched: it would otherwise download the weights.
+                    raise ValueError(
+                        "--only runtime installs the llama.cpp runtime, which --backend mlx does "
+                        "not use (MLX comes with the Python environment: uv sync --extra "
+                        "mlx|cuda|cpu); drop --only or use --only weights"
+                    )
                 print(download_model(args.destination, args.size, args.weights))
                 return
             if args.only != "weights":

@@ -24,7 +24,7 @@ import uvicorn
 from fastapi.testclient import TestClient
 from test_service import FakeBackend
 
-from rizzo_flow import cli, loader
+from rizzo_flow import cli, llama_release, loader
 from rizzo_flow.calibration import Calibration
 
 
@@ -127,6 +127,43 @@ def served(monkeypatch):
 
 
 @pytest.fixture
+def downloads(monkeypatch):
+    """Replace every installer and download; `calls` records them in order, `results` holds what
+    each step returns."""
+    state = SimpleNamespace(
+        calls=[],
+        results={
+            "install": Path("runtimes") / "llama-fake",
+            "download_gguf": Path("models") / "fake.gguf",
+            "download_model": "models/fake-checkpoint",
+        },
+    )
+
+    def record(name, *arguments):
+        state.calls.append((name, *arguments))
+        return state.results[name]
+
+    def translated():
+        state.calls.append(("translated",))
+        return False
+
+    def install(accelerator="auto", progress=None):
+        return record("install", accelerator, progress)
+
+    def download_gguf(size="4b", quant=None, destination=None, progress=None, variant=None):
+        return record("download_gguf", size, quant, destination, progress, variant)
+
+    def download_model(destination=None, size="4b", variant=None):
+        return record("download_model", destination, size, variant)
+
+    monkeypatch.setattr(llama_release, "install", install)
+    monkeypatch.setattr(llama_release, "translated", translated)
+    monkeypatch.setattr(cli, "download_gguf", download_gguf)
+    monkeypatch.setattr(cli, "download_model", download_model)
+    return state
+
+
+@pytest.fixture
 def payload():
     return {
         "state": {"ticket": "Non riesco ad accedere: l'abbonamento è già pagato ✓"},
@@ -195,6 +232,40 @@ def write_calibration(path, fingerprint="test-only", boolean=2.0, choice=4.0):
     )
     path.write_text(calibration.model_dump_json(), encoding="utf-8")
     return path
+
+
+# download --------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--backend=mlx", "--only=runtime"],
+        ["--only", "runtime", "--backend", "mlx"],
+        ["--backend", "mlx", "--only", "runtime", "--size", "1.7b", "--weights", "base"],
+        ["--backend=mlx", "--only=runtime", "--runtime=vulkan", "--destination=ckpt"],
+    ],
+)
+def test_download_of_the_runtime_alone_is_refused_for_mlx_before_anything_is_fetched(
+    rizzo, downloads, argv
+):
+    """MLX does not use the llama.cpp runtime: `--only runtime` used to fetch its weights."""
+    (out, err), exit_ = rizzo.fail("download", *argv)
+    assert err == (
+        "rizzo: --only runtime installs the llama.cpp runtime, which --backend mlx does not use "
+        "(MLX comes with the Python environment: uv sync --extra mlx|cuda|cpu); "
+        "drop --only or use --only weights\n"
+    )
+    assert out == ""
+    assert isinstance(exit_.__cause__, ValueError)
+    assert downloads.calls == []  # no weights, no runtime, not even the Rosetta check
+
+
+@pytest.mark.parametrize("argv", [["--backend=mlx"], ["--backend=mlx", "--only=weights"]])
+def test_download_for_mlx_still_fetches_the_checkpoint(rizzo, downloads, argv):
+    out, err = rizzo.run("download", *argv)
+    assert downloads.calls == [("download_model", None, "4b", None)]
+    assert (out, err) == (f"{downloads.results['download_model']}\n", "")
 
 
 # write_json ------------------------------------------------------------------------------------
