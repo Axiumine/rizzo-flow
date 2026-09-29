@@ -89,7 +89,9 @@ inferenza: liberarne il contesto sotto di lui sarebbe un use after free).
   esplicitamente non viene mai declassata), un solo device (`split_mode NONE`, lista `devices`),
   log di llama.cpp filtrati a warning/errori (`RIZZO_LLAMA_LOG=1` per vederli tutti).
   `backend_llama.py`: `LlamaTokenizer` rende il chat template del GGUF con jinja2 come fa
-  transformers (`trim_blocks`, `lstrip_blocks`, `raise_exception`) e tokenizza con
+  transformers (`trim_blocks`, `lstrip_blocks`, `raise_exception`; un template che non compila o non
+  gira, per jinja2 o per un errore di Python come `{{ 1 // 0 }}`, è un `ValueError` con il motivo, non
+  un'eccezione grezza; il `raise_exception` del template passa com'è) e tokenizza con
   `llama_tokenize(parse_special=True)`: **prompt e token identici a quelli di MLX** (stessi
   `prompt_sha256` e `input_tokens`; il template dell'1.7B differisce solo per un commento).
   `score`: prefisso sulla sequenza 0, poi per ogni microbatch `seq_cp` 0→k (cache unificata: le

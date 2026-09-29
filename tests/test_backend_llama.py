@@ -2,7 +2,9 @@
 
 import hashlib
 import re
+import sys
 
+import jinja2
 import pytest
 from fastapi.testclient import TestClient
 from test_llama_cpp import Native
@@ -183,6 +185,61 @@ def test_tokenizer_renders_like_transformers_and_encodes_with_the_gguf():
         tokenizer.apply_chat_template([{"role": "user", "content": "U"}], tokenize=True)
 
 
+@pytest.mark.parametrize(
+    "template",
+    [
+        "{{ ''.__class__.__mro__ }}",  # a way out of the template into the interpreter
+        "{% set _ = messages.append(1) %}",  # the messages belong to the caller
+    ],
+)
+def test_a_template_downloaded_with_the_weights_runs_in_a_sandbox(template):
+    tokenizer = LlamaTokenizer(FakeSession(), template)
+    with pytest.raises(ValueError, match=r"^The GGUF chat template cannot run: ") as raised:
+        tokenizer.apply_chat_template([{"role": "user", "content": "hi"}])
+    assert isinstance(raised.value.__cause__, jinja2.exceptions.SecurityError)
+
+
+def test_a_template_that_needs_what_the_environment_lacks_cannot_run_either():
+    template = "{{ strftime_now('%Y') }}"  # a helper of transformers that this renderer has not
+    tokenizer = LlamaTokenizer(FakeSession(), template)
+    with pytest.raises(ValueError, match=r"^The GGUF chat template cannot run: .*strftime_now"):
+        tokenizer.apply_chat_template([{"role": "user", "content": "hi"}])
+
+
+@pytest.mark.parametrize(
+    ("template", "error"),
+    [
+        ("{{ 1 // 0 }}", ZeroDivisionError),  # jinja2 leaves the division to Python
+        ("{{ 1 + 'a' }}", TypeError),
+        ("{% macro f() %}{{ f() }}{% endmacro %}{{ f() }}", RecursionError),
+        ("{{ 'abc'.index('z') }}", ValueError),  # Python's, not the template's own refusal
+    ],
+)
+def test_a_template_that_fails_in_python_cannot_run_and_says_which_exception(template, error):
+    tokenizer = LlamaTokenizer(FakeSession(), template)
+    message = rf"^The GGUF chat template cannot run: {error.__name__}: "
+    with pytest.raises(ValueError, match=message) as raised:
+        tokenizer.apply_chat_template([{"role": "user", "content": "hi"}])
+    assert type(raised.value) is ValueError  # wrapped: not the class of the template's refusal
+    assert type(raised.value.__cause__) is error
+
+
+def test_a_template_the_parser_cannot_finish_does_not_compile_and_says_so():
+    depth = sys.getrecursionlimit()  # a level of parentheses takes several frames of the parser
+    template = "{{ " + "(" * depth + "1" + ")" * depth + " }}"
+    message = r"^The GGUF chat template does not compile: RecursionError: "
+    with pytest.raises(ValueError, match=message) as raised:
+        LlamaTokenizer(FakeSession(), template)
+    assert type(raised.value.__cause__) is RecursionError
+
+
+def test_a_template_that_refuses_the_conversation_keeps_its_own_message():
+    tokenizer = LlamaTokenizer(FakeSession(), "{{ raise_exception('no system role') }}")
+    with pytest.raises(ValueError, match=r"^no system role$") as raised:
+        tokenizer.apply_chat_template([{"role": "user", "content": "hi"}])
+    assert raised.value.__cause__ is None  # not wrapped: it was ours to begin with
+
+
 CPU = Device(1, "CPU", "Some CPU", "cpu", "CPU", 64 << 30)
 IGPU = Device(2, "Vulkan0", "Intel(R) UHD Graphics", "igpu", "Vulkan", 32 << 30)
 RADEON = Device(3, "Vulkan1", "AMD Radeon RX 7900 XTX", "gpu", "Vulkan", 24 << 30)
@@ -344,14 +401,15 @@ class LoadedSession:
     device = None
     n_ctx = 8192 + 2048
 
-    def __init__(self):
+    def __init__(self, template):
+        self.template = template
         self.closed = 0
 
     def meta(self, key):
         return META.get(key)
 
     def chat_template(self):
-        return TEMPLATE
+        return self.template
 
     def tokenize(self, text, add_special=False):
         return [ord(character) for character in text]
@@ -366,6 +424,7 @@ class Runtime:
 
     def __init__(self, directory):
         self.directory = directory
+        self.template = TEMPLATE
         self.located = []  # devices `llama_release.locate` was asked about
         self.opened = []  # directories `Library.open` was asked for
         self.calls = []  # (gguf, options) of every `Session.load`
@@ -384,7 +443,7 @@ class Runtime:
     def load(self, gguf, **options):
         self.calls.append((gguf, options))
         self.events.append("load")
-        self.sessions.append(LoadedSession())
+        self.sessions.append(LoadedSession(self.template))
         return self.sessions[-1]
 
 
@@ -453,6 +512,14 @@ def test_a_backend_that_cannot_be_constructed_releases_the_session(native, gguf)
 
     with pytest.raises(RuntimeError, match=r"^no backend today$"):
         Unwilling.load(gguf)
+    assert [session.closed for session in native.sessions] == [1]
+
+
+def test_a_broken_chat_template_is_reported_and_the_session_released(native, gguf):
+    native.template = "{% if %}"
+    with pytest.raises(ValueError, match=r"^The GGUF chat template does not compile: ") as raised:
+        LlamaBackend.load(gguf)
+    assert isinstance(raised.value.__cause__, jinja2.TemplateSyntaxError)
     assert [session.closed for session in native.sessions] == [1]
 
 

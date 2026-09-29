@@ -9,6 +9,8 @@ import hashlib
 import time
 from pathlib import Path
 
+from jinja2 import TemplateError
+
 from . import llama_release
 from .config import GGUF, check_limits, identify
 from .llama_cpp import Library, Session
@@ -20,19 +22,37 @@ ARCHITECTURE = "spark2_5"
 FILE_TYPES = {"1": "f16", "7": "q8_0", "15": "q4_k_m", "32": "bf16"}
 
 
+class TemplateRefusal(ValueError):
+    """What the template's own `raise_exception` raises: its words are the message, untouched."""
+
+
+def reason(error: Exception) -> str:
+    """Why a template failed. jinja2's own errors are worded already; any other exception says
+    what it is first, because some read badly alone (a KeyError is just `'x'`)."""
+    return str(error) if isinstance(error, TemplateError) else f"{type(error).__name__}: {error}"
+
+
 class LlamaTokenizer:
     """The two tokenizer calls `prompts.compile_request` makes, served by the GGUF itself:
-    its chat template rendered the way transformers renders it, its vocabulary for encoding."""
+    its chat template rendered the way transformers renders it, its vocabulary for encoding.
+
+    The template rides along with a GGUF file that may not be ours, so whatever it does wrong ends
+    as a ValueError with the reason (a person reads one line, the server answers 422): jinja2's
+    errors, but also the ones Python raises while a template runs (`{{ 1 // 0 }}`) or is parsed
+    (a nesting deeper than the stack). Only the template's own `raise_exception` passes as it is."""
 
     def __init__(self, session, template: str):
         from jinja2.sandbox import ImmutableSandboxedEnvironment
 
         def raise_exception(message):
-            raise ValueError(message)
+            raise TemplateRefusal(message)
 
         environment = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
         environment.globals["raise_exception"] = raise_exception
-        self.template = environment.from_string(template)
+        try:
+            self.template = environment.from_string(template)
+        except Exception as error:
+            raise ValueError(f"The GGUF chat template does not compile: {reason(error)}") from error
         self.session = session
         self.pad_token_id = session.pad_token
         self.eos_token_id = session.eos_token
@@ -40,7 +60,12 @@ class LlamaTokenizer:
     def apply_chat_template(self, messages, tokenize=False, **variables) -> str:
         if tokenize:
             raise ValueError("Render the text, then call encode()")
-        return self.template.render(messages=messages, **variables)
+        try:
+            return self.template.render(messages=messages, **variables)
+        except TemplateRefusal:
+            raise  # the template said no on purpose, in its own words
+        except Exception as error:  # the sandbox refuses it, a helper is undefined, Python fails
+            raise ValueError(f"The GGUF chat template cannot run: {reason(error)}") from error
 
     def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
         return self.session.tokenize(text, add_special_tokens)
