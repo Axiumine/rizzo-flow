@@ -1,13 +1,17 @@
-"""Engine (engine.py): what a failure of the model is, and what the request gets wrong instead."""
+"""Engine (engine.py): what a failure of the model is, and how the engine is closed."""
 
 import math
 import re
+import threading
+from concurrent.futures import Future
 from typing import Any
 
 import pytest
-from test_service import FakeBackend
+from test_service import CharacterTokenizer, FakeBackend
 
 from rizzo_flow.engine import BackendError, Engine
+
+JOIN_SECONDS = 10
 
 
 def exactly(message: str) -> str:
@@ -15,19 +19,36 @@ def exactly(message: str) -> str:
     return f"^{re.escape(message)}$"
 
 
+class CharTokenizer(CharacterTokenizer):
+    """The tokenizer of test_service, which keeps the messages of every prompt it renders."""
+
+    def __init__(self) -> None:
+        self.rendered: list[list[dict[str, str]]] = []
+
+    def apply_chat_template(self, messages: list[dict[str, str]], **kwargs: Any) -> str:
+        self.rendered.append(messages)
+        return self.render(messages)
+
+    def render(self, messages: list[dict[str, str]]) -> str:
+        return "\n".join(message["content"] for message in messages) + "\nASSISTANT:"
+
+
 class StubBackend(FakeBackend):
     """Scores like the FakeBackend of test_service (it favors the second candidate), and keeps a
-    record of what it was asked."""
+    record of what it was asked and of the threads that were asked."""
 
-    def __init__(self):
+    def __init__(self, tokenizer: Any = None) -> None:
         super().__init__()
-        self.calls = []
+        self.tokenizer = tokenizer if tokenizer is not None else CharTokenizer()
+        self.calls: list[list[str]] = []
+        self.threads: list[threading.Thread] = []
 
     def logits_for(self, job: Any) -> list[float]:
         return [0.0, 10.0] + [0.0] * (len(job.slots) - 2)
 
     def score(self, prefix: list[int], jobs: list[Any], mode: str) -> tuple[dict, dict]:
         self.calls.append([job.id for job in jobs])
+        self.threads.append(threading.current_thread())
         return {job.id: self.logits_for(job) for job in jobs}, {"generated_tokens": 0}
 
 
@@ -135,3 +156,116 @@ def test_after_a_backend_error_the_next_request_is_served():
     with pytest.raises(BackendError):
         engine.decide(payload())
     assert engine.decide(payload())["answers"]["supported"]["value"] is True  # lock is free
+
+
+# close ------------------------------------------------------------------------------------------
+
+
+def test_close_accepts_no_more_work_and_leaves_the_inference_thread_alone():
+    # The thread that ran the model must live as long as the process: MLX's CUDA backend aborts
+    # the process when it exits.
+    backend = StubBackend()
+    engine = Engine(backend)
+    engine.decide(payload())
+    (worker,) = set(backend.threads)
+    engine.close()
+    assert worker.is_alive()
+    engine.close()  # a second call has nothing left to wait for
+    with pytest.raises(RuntimeError, match=exactly("The engine is closed")):
+        engine.decide(payload())
+    assert len(backend.calls) == 1
+
+
+def test_a_closed_engine_refuses_a_request_before_it_compiles_it():
+    # Compiling tokenizes with the model, which the caller may have freed by now.
+    backend = StubBackend()
+    engine = Engine(backend)
+    engine.close()
+    with pytest.raises(RuntimeError, match=exactly("The engine is closed")):
+        engine.decide(payload())
+    assert backend.tokenizer.rendered == []
+    assert backend.calls == []
+
+
+@pytest.mark.parametrize("stage", ["compiling", "deciding"])
+def test_close_waits_for_the_request_under_way(stage):
+    """A caller that frees the model after close() must not do so under a request that is
+    running, or that is about to run: one that got past the check that refuses a closed engine."""
+    reached, release = threading.Event(), threading.Event()
+    journal: list[str] = []
+
+    def hold(where: str) -> None:
+        if where == stage:
+            reached.set()
+            release.wait(JOIN_SECONDS)
+
+    class HeldTokenizer(CharTokenizer):
+        def render(self, messages: list[dict[str, str]]) -> str:
+            hold("compiling")
+            return super().render(messages)
+
+    class HeldBackend(StubBackend):
+        def score(self, prefix: list[int], jobs: list[Any], mode: str) -> tuple[dict, dict]:
+            hold("deciding")
+            journal.append("score:end")
+            return super().score(prefix, jobs, mode)
+
+    engine = Engine(HeldBackend(tokenizer=HeldTokenizer()))
+    errors: list[BaseException] = []
+
+    def decide() -> None:
+        try:
+            engine.decide(payload())
+        except BaseException as error:  # noqa: BLE001 - reported to the test, not swallowed
+            errors.append(error)
+
+    def close() -> None:
+        engine.close()
+        journal.append("closed")
+
+    deciding = threading.Thread(target=decide)
+    closing = threading.Thread(target=close)
+    try:
+        deciding.start()
+        assert reached.wait(JOIN_SECONDS)
+        closing.start()
+        closing.join(timeout=0.3)
+        assert closing.is_alive()  # still waiting for the request
+        assert journal == []
+    finally:
+        release.set()
+        deciding.join(timeout=JOIN_SECONDS)
+        closing.join(timeout=JOIN_SECONDS)
+    assert journal == ["score:end", "closed"]
+    assert errors == []  # the request under way was not cut short
+
+
+def test_close_waits_for_a_decode_whose_caller_gave_up(monkeypatch):
+    """Ctrl-C ends the wait of the caller, not the decode on the inference thread."""
+    started, finish = threading.Event(), threading.Event()
+    journal: list[str] = []
+
+    class SlowBackend(StubBackend):
+        def score(self, prefix: list[int], jobs: list[Any], mode: str) -> tuple[dict, dict]:
+            started.set()
+            finish.wait(JOIN_SECONDS)
+            journal.append("score:end")
+            return super().score(prefix, jobs, mode)
+
+    def interrupted(self: Future, timeout: float | None = None) -> Any:
+        started.wait(JOIN_SECONDS)
+        raise KeyboardInterrupt
+
+    engine = Engine(SlowBackend())
+    real_result = Future.result
+    monkeypatch.setattr(Future, "result", interrupted)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            engine.decide(payload())
+        monkeypatch.setattr(Future, "result", real_result)  # close() waits on a future as well
+        threading.Timer(0.3, finish.set).start()
+        engine.close()
+        journal.append("closed")
+        assert journal == ["score:end", "closed"]
+    finally:
+        finish.set()

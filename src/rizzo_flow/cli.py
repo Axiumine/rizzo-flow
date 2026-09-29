@@ -220,8 +220,9 @@ def main():
             threads=args.threads,
             kv_type=args.kv_type,
         )
-        engine = Engine(backend, ctx=args.ctx, calibration=calibration)
+        engine = None
         try:
+            engine = Engine(backend, ctx=args.ctx, calibration=calibration)
             if args.command == "decide":
                 write_json(engine.decide(request), args.output)
             elif args.command == "evaluate":
@@ -237,6 +238,11 @@ def main():
 
                 uvicorn.run(create_app(engine), host=args.host, port=args.port)
         finally:
+            # Ctrl-C leaves a decode running on the inference thread: freeing its context under
+            # it is a use after free, so wait for it first. Not in a try of its own: a second
+            # Ctrl-C then skips the release below, which is the safe way out.
+            if engine is not None:
+                engine.close()
             # Metal aborts at exit when the context outlives the interpreter; other backends
             # simply get their memory back a moment earlier.
             release = getattr(backend, "close", None)

@@ -8,11 +8,14 @@ import math
 import re
 import runpy
 import sys
+import threading
+from concurrent.futures import Future
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import uvicorn
+from fastapi.testclient import TestClient
 from test_service import FakeBackend
 
 from rizzo_flow import cli, loader
@@ -28,6 +31,27 @@ class ClosableBackend(FakeBackend):
 
     def close(self):
         self.closed += 1
+
+
+class BusyBackend(ClosableBackend):
+    """A decision that takes as long as the test lets it, with a journal of what happened."""
+
+    def __init__(self):
+        super().__init__()
+        self.journal = []
+        self.started = threading.Event()
+        self.finish = threading.Event()
+
+    def score(self, prefix, jobs, mode):
+        self.journal.append("score:start")
+        self.started.set()
+        self.finish.wait(5)
+        self.journal.append("score:end")
+        return super().score(prefix, jobs, mode)
+
+    def close(self):
+        self.journal.append("close")
+        super().close()
 
 
 def fake_loader(monkeypatch):
@@ -196,6 +220,17 @@ def test_setup_errors_after_the_load_are_one_line(rizzo, loaded, request_file, b
     assert out == ""
     assert err.startswith("rizzo: ")
     assert message in err
+
+
+@pytest.mark.parametrize("command", ["decide", "evaluate", "serve"])
+def test_the_model_is_released_when_the_setup_after_the_load_fails(
+    rizzo, loaded, served, commands, bad_setup, command
+):
+    flags, _ = bad_setup
+    rizzo.fail(*commands[command], *flags)
+    assert len(loaded.calls) == 1
+    assert loaded.model.closed == 1  # Metal aborts at exit when the context outlives Python
+    assert served.runs == []
 
 
 @pytest.mark.parametrize("command", ["decide", "evaluate", "serve"])
@@ -375,6 +410,36 @@ def test_evaluate_reads_its_fixtures_before_loading_the_weights(rizzo, loaded, t
     assert loaded.calls == []
 
 
+# Ctrl-C ----------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("command", ["decide", "evaluate"])
+def test_ctrl_c_frees_the_model_only_after_the_decode_in_flight_returned(
+    rizzo, loaded, commands, monkeypatch, command
+):
+    busy = loaded.model = BusyBackend()
+    real_result = Future.result
+    interrupts: list[bool] = []
+
+    def interrupted(self, timeout=None):
+        if interrupts:  # Ctrl-C comes once; releasing the engine waits on a future of its own
+            return real_result(self, timeout)
+        interrupts.append(True)
+        # What Future.result() raises in the main thread on Ctrl-C, while the decision is running.
+        busy.started.wait(5)
+        threading.Timer(0.3, busy.finish.set).start()
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(Future, "result", interrupted)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            rizzo.run(*commands[command])
+        # Freeing the context of a llama.cpp model under a running llama_decode is a use after free.
+        assert busy.journal == ["score:start", "score:end", "close"]
+    finally:
+        busy.finish.set()
+
+
 # create-only results ---------------------------------------------------------------------------
 
 
@@ -508,6 +573,15 @@ def test_the_typed_decisions_script_refuses_a_taken_output_before_it_reads_its_d
 
 
 # serve -----------------------------------------------------------------------------------------
+
+
+def test_the_engine_of_the_served_app_is_closed_when_the_server_stops(
+    rizzo, loaded, served, payload
+):
+    rizzo.run("serve")
+    [(app, _)] = served.runs
+    with TestClient(app) as client, pytest.raises(RuntimeError, match="The engine is closed"):
+        client.post("/v1/decisions", json=payload)
 
 
 def test_serve_refuses_a_key_that_is_not_ascii_before_it_loads_the_model(

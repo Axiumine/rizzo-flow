@@ -71,7 +71,9 @@ prima di uscire). `engine.Engine` orchestra tutto sotto un `Lock` (un solo model
 richieste HTTP concorrenti sono serializzate; il parallelismo è *dentro* la richiesta). Un `ValueError`
 che arriva dal backend dopo validazione e compilazione (un `llama_decode` che fallisce, logit non
 numerici) diventa `engine.BackendError` (sottoclasse di `ValueError`), che `api.py` risponde con **503**:
-i `ValueError` di validazione restano 422.
+i `ValueError` di validazione restano 422. `Engine.close()` aspetta il decode in corso e rifiuta i
+successivi; la CLI lo chiama prima di liberare il modello (un Ctrl-C lascia un decode sul thread di
+inferenza: liberarne il contesto sotto di lui sarebbe un use after free).
 
 - **Runtime llama.cpp (tre moduli, nessuna dipendenza Python oltre a `jinja2`).**
   `llama_release.py`: release pinnata (`RELEASE`/`COMMIT`), tabella `PACKAGES` (os, macchina,

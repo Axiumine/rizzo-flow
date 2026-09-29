@@ -26,10 +26,20 @@ class Engine:
                 "Calibration was fitted for a different model/runtime/prompt configuration"
             )
         self._lock = Lock()
+        self._closed = False
         # All model work runs on one thread that lives as long as the process. Web servers call
         # decide() from short-lived pool threads, and MLX's CUDA backend aborts the process when
         # a thread that ran computations exits.
         self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rizzo-inference")
+
+    def close(self):
+        """Wait for the decode in flight and accept no more: the model must not be freed under it.
+
+        The inference thread stays, since it must live as long as the process (see __init__)."""
+        with self._lock:  # a decide() under way finishes first, one that follows is refused
+            self._closed = True
+            # Queued behind the decode that a Ctrl-C left running on the thread.
+            self._worker.submit(bool).result()
 
     def decide(self, request: Request | dict) -> dict:
         # Re-validate a serialized snapshot, also protecting mutable Pydantic objects.
@@ -38,6 +48,8 @@ class Engine:
         )
         started = time.perf_counter()
         with self._lock:
+            if self._closed:
+                raise RuntimeError("The engine is closed")
             acquired = time.perf_counter()
             prefix, jobs = compile_request(self.backend.tokenizer, request, self.ctx)
             encoded = time.perf_counter()
