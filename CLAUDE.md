@@ -205,7 +205,10 @@ sulla pagina vanno tenuti allineati a README e `results/`.
   dichiarare superiorità su Jev/SemIf senza dati. Ogni limite osservato va scritto nei README.
 - **Risultati create-only.** `cli.write_json` e gli script aprono i file in modalità `"x"`: non
   sovrascrivere né riscrivere report in `results/`; per nuovi esperimenti usare un percorso nuovo
-  (`results/local-*` è ignorato). `results/SHA256SUMS` copre i report storici.
+  (`results/local-*` è ignorato). `results/SHA256SUMS` copre i report storici. `cli.refuse_existing`
+  rifiuta un `--output` esistente, anche un symlink pendente, prima di caricare il modello
+  (`scripts/typed_decisions.py` la chiama); `decide` e `evaluate` creano prima del caricamento anche
+  la cartella del report.
 - **Niente troncamento silenzioso.** Input oltre i limiti → `ValueError` → HTTP 422. Un fallimento del
   modello su una richiesta valida è un altro caso: `BackendError` → HTTP 503.
 - **Non ottimizzare sul test.** Le fixture proprie (`benchmarks/smoke.jsonl`) sono già state usate

@@ -1,5 +1,7 @@
 import argparse
+import errno
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -26,6 +28,14 @@ def write_json(value, destination):
             stream.write(text)
     else:
         print(text, end="")
+
+
+def refuse_existing(destination):
+    """Refuse a taken --output before the model runs, not after it.
+
+    write_json still opens the file with "x", so one that appears in the meantime is refused too."""
+    if destination and os.path.lexists(destination):  # lexists: a dangling symlink is taken too
+        raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(destination))
 
 
 def read_jsonl(path):
@@ -172,11 +182,17 @@ def main():
         from .calibration import Calibration
         from .engine import Engine
 
-        # Validate the request before loading gigabytes of weights.
+        # Validate the request, and that --output is free and can be created, before loading
+        # gigabytes of weights.
+        if args.command != "serve":
+            refuse_existing(args.output)
         if args.command == "decide":
             from .schema import Request
 
             request = Request.model_validate_json(args.input.read_text(encoding="utf-8"))
+        if args.command != "serve" and args.output:
+            # A folder that cannot be made is found now, not when the report is written.
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
         if args.command == "serve":
             from .api import check_api_key
 

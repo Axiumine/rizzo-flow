@@ -241,6 +241,9 @@ def main():
     parser.add_argument("--ctx", type=int, default=8192)
     parser.add_argument("--output")
     args = parser.parse_args()
+    from rizzo_flow.cli import refuse_existing
+
+    refuse_existing(args.output)  # a taken --output fails now, not after the whole run
     rows = load(args.data)
     if args.baselines:
         print(json.dumps(baselines(rows, load(args.train)), indent=2))

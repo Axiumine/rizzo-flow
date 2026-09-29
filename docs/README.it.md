@@ -324,7 +324,8 @@ non è installato) usano l'architettura Spark reale con pesi casuali piccoli e v
 selettiva contro l'intero vocabolario, isolamento delle cache, confini sliding-window, batch con
 lunghezze diverse e quantizzazione. Il validatore usa invece i pesi 4B reali, API, fixture e stato lungo.
 
-Gli output sono **create-only**. I report conservano distribuzioni, logit, hash dei prompt,
+Gli output sono **create-only**: un `--output` già esistente (anche un symlink pendente) viene rifiutato
+prima di caricare il modello. I report conservano distribuzioni, logit, hash dei prompt,
 hash dei pesi/tokenizer, revisioni, tempi sincronizzati GPU e memoria (`peak_device_bytes` con
 llama.cpp: calo della memoria libera della GPU da prima del caricamento, quindi include gli altri
 processi; `peak_mlx_bytes` con MLX). Il caricamento

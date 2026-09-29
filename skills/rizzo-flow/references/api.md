@@ -163,7 +163,7 @@ ASCII, the server refuses to start with another).
 ## CLI equivalents
 
 ```bash
-uv run rizzo decide request.json [--output out.json]   # one request, loads the model itself
+uv run rizzo decide request.json [--output out.json]   # one request, loads the model itself; --output must not exist yet
 uv run rizzo schema [--response]                       # JSON Schema of request/response
 uv run rizzo evaluate cases.jsonl                      # accuracy/NLL/Brier/ECE on labelled cases
 uv run rizzo calibrate rows.jsonl --fingerprint <fp> --output fit.json
