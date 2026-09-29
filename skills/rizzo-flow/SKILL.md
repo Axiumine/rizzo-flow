@@ -101,6 +101,9 @@ python skills/rizzo-flow/scripts/rizzo_client.py request.json            # compa
 python skills/rizzo-flow/scripts/rizzo_client.py request.json --raw      # full JSON
 ```
 
+The server comes from `RIZZO_URL` (default `http://127.0.0.1:8017`; http or https only). If `RIZZO_API_KEY`
+is set, the client sends it as a bearer token to that server only: a redirect does not carry it along.
+
 ### 4. Read the answer — status first, then value, then probability
 
 ```text

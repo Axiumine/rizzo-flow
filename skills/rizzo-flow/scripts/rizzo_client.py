@@ -7,7 +7,8 @@
     cat request.json | python rizzo_client.py -      # read the request from stdin
     python rizzo_client.py --health                  # is the server up?
 
-The base URL defaults to $RIZZO_URL or http://127.0.0.1:8017; $RIZZO_API_KEY is sent as a bearer.
+The base URL defaults to $RIZZO_URL or http://127.0.0.1:8017; $RIZZO_API_KEY is sent as a bearer
+token to that server only: a redirect does not carry it along.
 """
 
 import argparse
@@ -15,15 +16,19 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 
 def call(url, body=None, key=None, timeout=300):
+    if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+        sys.exit(f"Unsupported server URL {url!r}: it has to start with http:// or https://")
     headers = {"Content-Type": "application/json"}
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode()
     request = urllib.request.Request(url, data, headers, method="GET" if data is None else "POST")
+    if key:
+        # Not in `headers`: urllib repeats those on every redirect, to whatever host it leads to.
+        request.add_unredirected_header("Authorization", f"Bearer {key}")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.load(response)
