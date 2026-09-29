@@ -1,5 +1,6 @@
 """Runtime packages: choice per machine, verified download, safe unpacking. No network."""
 
+import email.message
 import hashlib
 import http.server
 import io
@@ -7,6 +8,7 @@ import re
 import tarfile
 import threading
 import types
+import urllib.error
 import zipfile
 
 import pytest
@@ -14,6 +16,9 @@ import pytest
 from rizzo_flow import llama_release as release
 
 LIBRARY = "llama.testlib"  # any name will do: the platform's real one is not what is tested
+GITHUB = "https://github.com/ggml-org/llama.cpp/releases/download/b1/runtime.zip"
+PAYLOAD = bytes(range(10))
+DIGEST = hashlib.sha256(PAYLOAD).hexdigest()
 
 
 def at(monkeypatch, system, machine, nvidia=False):
@@ -212,6 +217,145 @@ def test_interrupted_download_resumes_where_it_stopped(tmp_path):
         server.shutdown()
     assert target.read_bytes() == payload
     assert requests == [None, f"bytes={len(payload) // 3}-"]
+
+
+@pytest.mark.parametrize(
+    ("extra", "then"),
+    [(b"", []), (b"x", [None])],
+    ids=["complete", "longer-than-the-file"],
+)
+def test_a_range_past_the_end_is_answered_by_checking_the_partial_file(tmp_path, extra, then):
+    """A CDN answers `Range: bytes=<size>-` with a real 416. The interrupted run may have stopped
+    after the last byte: then the partial file is the download. If it is longer than the file, it
+    cannot be, and the next request starts from the first byte."""
+    payload = bytes(range(256)) * 64
+    partial = payload + extra
+    requests = []
+
+    class Cdn(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            header = self.headers.get("Range")
+            requests.append(header)
+            start = int(header.removeprefix("bytes=").rstrip("-")) if header else 0
+            if start >= len(payload):
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{len(payload)}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            body = payload[start:]
+            self.send_response(206 if header else 200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Cdn)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        (tmp_path / "weights.gguf.part").write_bytes(partial)
+        url = f"http://127.0.0.1:{server.server_port}/weights.gguf"
+        target = release.fetch(url, tmp_path / "weights.gguf", hashlib.sha256(payload).hexdigest())
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert target.read_bytes() == payload
+    assert requests == [f"bytes={len(partial)}-", *then]
+    assert not (tmp_path / "weights.gguf.part").exists()
+
+
+class Response:
+    """What `urlopen` returns: a context manager with a status, headers and a body."""
+
+    def __init__(self, body, status=200):
+        self.status = status
+        self.headers = {"Content-Length": str(len(body))}
+        self._stream = io.BytesIO(body)
+
+    def read(self, size=-1):
+        return self._stream.read(size)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self._stream.close()
+
+
+def http_error(code, reason="Nope"):
+    return urllib.error.HTTPError(
+        "https://example.test/file", code, reason, email.message.Message(), io.BytesIO()
+    )
+
+
+def range_server(monkeypatch, payload):
+    """Replace `urlopen` by a server that honours `Range: bytes=N-` and answers 416 past the end,
+    as a CDN does; the list it returns holds the Range header of every request."""
+    ranges = []
+
+    def urlopen(request, timeout=None):
+        header = request.get_header("Range")
+        ranges.append(header)
+        if header is None:
+            return Response(payload)
+        start = int(header.removeprefix("bytes=").rstrip("-"))
+        if start >= len(payload):
+            raise http_error(416, "Range Not Satisfiable")
+        return Response(payload[start:], status=206)
+
+    monkeypatch.setattr(release.urllib.request, "urlopen", urlopen)
+    return ranges
+
+
+def test_a_complete_partial_file_left_by_an_interrupted_run_is_accepted(tmp_path, monkeypatch):
+    """The previous run was stopped after the last byte arrived and before the checksum and the
+    rename. A CDN answers `Range: bytes=<size>-` with 416: the bytes on disk are checked then, and
+    they are the file, so there is nothing left to download."""
+    partial = tmp_path / "model.gguf.part"
+    partial.write_bytes(PAYLOAD)
+    (tmp_path / "model.gguf").write_bytes(b"an older copy")
+    ranges = range_server(monkeypatch, PAYLOAD)
+    progress = []
+    target = release.fetch(
+        GITHUB, tmp_path / "model.gguf", DIGEST, lambda *call: progress.append(call)
+    )
+    assert target.read_bytes() == PAYLOAD
+    assert ranges == ["bytes=10-"]  # asked once
+    assert not partial.exists()
+    assert progress == []  # nothing was transferred
+
+
+@pytest.mark.parametrize(
+    "leftover",
+    [
+        pytest.param(bytes(reversed(PAYLOAD)), id="same-size-other-bytes"),
+        pytest.param(PAYLOAD + b"more", id="longer-than-the-file"),
+    ],
+)
+def test_a_partial_file_that_is_not_the_file_is_dropped_when_the_range_is_refused(
+    tmp_path, monkeypatch, leftover
+):
+    """416 says the partial file is as long as the file, or longer; only the checksum can say it is
+    the file. When it is not, the next request starts from the first byte, not the same one again."""
+    partial = tmp_path / "model.gguf.part"
+    partial.write_bytes(leftover)
+    ranges = range_server(monkeypatch, PAYLOAD)
+    target = release.fetch(GITHUB, tmp_path / "model.gguf", DIGEST)
+    assert target.read_bytes() == PAYLOAD
+    assert ranges == [f"bytes={len(leftover)}-", None]
+    assert not partial.exists()
+
+
+def test_a_refused_range_never_lets_an_unverified_partial_file_through(tmp_path, monkeypatch):
+    partial = tmp_path / "model.gguf.part"
+    partial.write_bytes(bytes(reversed(PAYLOAD)))  # as long as the file, and not the file
+    range_server(monkeypatch, PAYLOAD)
+    with pytest.raises(ValueError, match=r"^model.gguf: download failed after 1 attempts \(HTTP"):
+        release.fetch(GITHUB, tmp_path / "model.gguf", DIGEST, attempts=1)
+    assert not (tmp_path / "model.gguf").exists()  # never renamed on the strength of a 416
+    assert not partial.exists()  # dropped: the next run starts from the first byte
 
 
 def test_token_goes_to_the_first_host_only_and_denials_fail_fast(tmp_path):

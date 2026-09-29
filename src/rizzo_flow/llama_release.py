@@ -323,6 +323,14 @@ def fetch(
                     else "access denied or not found"
                 )
                 raise ValueError(f"{target.name}: HTTP {error.code}, {hint}") from None
+            if error.code == 416 and have:
+                # The range starts at the end of the file or beyond it, so the partial file is
+                # either the whole download, stopped before the check and the rename, or not this
+                # file at all: only the sha256 tells. Retrying the same request would not help.
+                if sha256_file(partial) == sha256:
+                    partial.replace(target)
+                    return target
+                partial.unlink()  # start again from the first byte
             failure = str(error)
             continue
         except (OSError, http.client.HTTPException) as error:  # resets, timeouts, short reads

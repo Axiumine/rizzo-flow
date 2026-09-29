@@ -79,9 +79,10 @@ inferenza: liberarne il contesto sotto di lui sarebbe un use after free).
   `llama_release.py`: release pinnata (`RELEASE`/`COMMIT`), tabella `PACKAGES` (os, macchina,
   famiglia) → archivi ufficiali con sha256, `pick("auto")` = Metal su Mac ARM, CUDA se si carica
   `nvcuda.dll`/`libcuda.so.1`, altrimenti Vulkan, altrimenti CPU; `fetch` riprende i download
-  interrotti (Range) e decide solo lo sha256; i tarball perdono la cartella esterna così runtime e
-  librerie CUDA finiscono nella stessa directory; `locate(famiglia)` sceglie fra più build
-  installate in `runtimes/` (o `RIZZO_LLAMA_DIR`): solo un nome di famiglia è una richiesta,
+  interrotti (Range) e decide solo lo sha256 (un 416 con un parziale già completo: se lo sha256
+  coincide lo si sposta a posto, altrimenti si riparte dal primo byte); i tarball perdono la cartella
+  esterna così runtime e librerie CUDA finiscono nella stessa directory; `locate(famiglia)` sceglie fra
+  più build installate in `runtimes/` (o `RIZZO_LLAMA_DIR`): solo un nome di famiglia è una richiesta,
   `auto`, `gpu`, il nome di un device o niente danno la build che `pick("auto")` consiglia.
   `llama_cpp.py`: struct `ModelParams`,
   `ContextParams`, `Batch` trascritti dall'header di **quel** commit (passati per valore: una build
