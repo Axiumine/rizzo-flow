@@ -3,11 +3,45 @@
 import json
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=8000)]
 Number = Annotated[float, Field(allow_inf_nan=False, ge=-1e100, le=1e100)]
 MAX_SLOTS = 26  # every candidate, special ones included, is one uppercase answer letter
+
+
+def require_unicode(value):
+    """Refuse a lone surrogate in any string of a parsed JSON value, dict keys included.
+
+    JSON can spell one (`"\\ud800"`, which `json.loads` accepts) but UTF-8 cannot encode it: it
+    would break the tokenizer or a response, or come back as U+FFFD in place of a question ID.
+    Iterative, so that deeply nested input cannot exhaust the stack.
+    """
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, str):
+            try:
+                item.encode()
+            except UnicodeEncodeError:
+                raise ValueError(
+                    "Strings must be valid Unicode text: a lone surrogate, such as the JSON "
+                    "escape \\ud800, cannot be encoded as UTF-8"
+                ) from None
+        elif isinstance(item, dict):
+            pending.extend(item)
+            pending.extend(item.values())
+        elif isinstance(item, list):
+            pending.extend(item)
+    return value
 
 
 class Strict(BaseModel):
@@ -96,6 +130,11 @@ class Request(Strict):
     state: str | dict[str, JsonValue] | list[JsonValue]
     questions: dict[str, Question] = Field(min_length=1, max_length=64)
     mode: Literal["shared", "direct"] = "shared"
+
+    @field_validator("state", "questions", mode="before")
+    @classmethod
+    def valid_unicode(cls, value):
+        return require_unicode(value)
 
     @model_validator(mode="after")
     def valid_state(self):

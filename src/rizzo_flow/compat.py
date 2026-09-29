@@ -6,11 +6,11 @@ checkpoint: the response `model` field always reports the local model, never a J
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from .config import MODEL_ID
 from .prompts import canonical
-from .schema import MAX_SLOTS, Request
+from .schema import MAX_SLOTS, Request, require_unicode
 
 LOCAL_ALIAS = "rizzo-latest"
 # Accepted so that clients written for the hosted API work unchanged against localhost.
@@ -60,6 +60,11 @@ class SystemOneRequest(Wire):
     state: Structured
     model: str = Field(min_length=1, max_length=128)
     questions: dict[str, WireQuestion] = Field(min_length=1, max_length=64)
+
+    @field_validator("state", "model", "questions", mode="before")
+    @classmethod
+    def valid_unicode(cls, value):
+        return require_unicode(value)
 
     @model_validator(mode="after")
     def nonblank_option_keys(self):

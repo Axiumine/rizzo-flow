@@ -28,20 +28,22 @@ LOGO = Path(__file__).with_name("logo.png")
 
 
 def jsonable(value):
-    """The same structure, with whatever `json.dumps` would refuse replaced by its text.
+    """The same structure, with whatever a JSON response cannot carry replaced by its text.
 
-    Two things reach here: non-JSON floats (NaN, Infinity, which `json.loads` accepts on the
-    way in) echoed back as the offending input, and the exception object a validator raised.
+    Three things reach here: non-JSON floats (NaN, Infinity) and lone surrogates (`"\\ud800"`,
+    which UTF-8 cannot encode), both accepted by `json.loads` on the way in and echoed back as
+    the offending input, and the exception object a validator raised.
     """
     if isinstance(value, float):
         return value if isfinite(value) else f"<{value}>"
     if isinstance(value, dict):
-        return {str(key): jsonable(item) for key, item in value.items()}
+        return {jsonable(str(key)): jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [jsonable(item) for item in value]
-    if isinstance(value, (str, int, bool)) or value is None:
+    if isinstance(value, (int, bool)) or value is None:
         return value
-    return str(value)
+    # Text, or the text of anything else; a lone surrogate is written as its escape.
+    return str(value).encode("utf-8", "backslashreplace").decode("utf-8")
 
 
 def create_app(engine, api_key=None):
@@ -54,9 +56,10 @@ def create_app(engine, api_key=None):
 
     @app.exception_handler(RequestValidationError)
     def invalid_request(request: HttpRequest, error: RequestValidationError):
-        # `json.loads` accepts NaN and Infinity, JSON does not. Validation rejects them, but the
-        # 422 body echoes the offending input, and serializing that would fail inside the
-        # response and turn a client error into a 500. Report them instead of echoing them.
+        # `json.loads` accepts NaN and Infinity (JSON has neither) and lone surrogates (UTF-8
+        # cannot encode them). Validation rejects them, but the 422 body echoes the offending
+        # input, and serializing that would fail inside the response and turn a client error into
+        # a 500. Report them instead of echoing them.
         return JSONResponse(status_code=422, content={"detail": jsonable(error.errors())})
 
     def authorize(authorization: str | None = Header(default=None)):
