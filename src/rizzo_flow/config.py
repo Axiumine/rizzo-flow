@@ -248,6 +248,12 @@ def gguf_spec(size=DEFAULT_SIZE, quant=None, variant=None) -> GgufSpec:
     return spec
 
 
+def check_limits(batch_size: int, prefill_chunk: int) -> None:
+    """The ranges both backends accept, checked before any weights are read."""
+    if not 1 <= batch_size <= 16 or not 1 <= prefill_chunk <= 2048:
+        raise ValueError("batch_size must be 1–16 and prefill_chunk 1–2048")
+
+
 def hf_token() -> str | None:
     """Token for private Hugging Face repositories: HF_TOKEN, a .env file in the working
     directory, or the token saved by `hf auth login`."""

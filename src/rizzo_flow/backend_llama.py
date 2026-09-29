@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from . import llama_release
-from .config import GGUF, identify
+from .config import GGUF, check_limits, identify
 from .llama_cpp import Session
 from .prompts import PROMPT_VERSION, Compiled, canonical
 
@@ -48,8 +48,7 @@ class LlamaTokenizer:
 
 class LlamaBackend:
     def __init__(self, session, tokenizer, metadata, batch_size=4, prefill_chunk=512):
-        if not 1 <= batch_size <= 16 or not 1 <= prefill_chunk <= 2048:
-            raise ValueError("batch_size must be 1–16 and prefill_chunk 1–2048")
+        check_limits(batch_size, prefill_chunk)
         self.session = session
         self.tokenizer = tokenizer
         self.metadata = metadata
@@ -74,6 +73,7 @@ class LlamaBackend:
             raise ValueError(f"GGUF file not found at {path}. Run `rizzo download` first.")
         if ctx < 1:
             raise ValueError("ctx must be positive")
+        check_limits(batch_size, prefill_chunk)  # before the hash and the ~10 s model load
         started = time.perf_counter()
         # Hash the weights once at startup for auditability and calibration binding.
         with path.open("rb") as stream:
@@ -136,7 +136,11 @@ class LlamaBackend:
             "context_cells": session.n_ctx,
             "load_seconds": time.perf_counter() - started,
         }
-        return cls(session, tokenizer, metadata, batch_size, prefill_chunk)
+        try:
+            return cls(session, tokenizer, metadata, batch_size, prefill_chunk)
+        except Exception:
+            session.close()  # the backend never came to own it
+            raise
 
     def _feed(self, tokens, start, sequence, want_logits) -> int | None:
         """Run `tokens` on one sequence, N_BATCH per call; index of the final logits row.

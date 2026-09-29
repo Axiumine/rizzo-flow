@@ -96,3 +96,39 @@ def test_branch_does_not_mutate_retained_prefix():
     mx.eval(output)
     assert [c.offset for c in prefix] == offsets
     assert [[a.tolist() for a in c.state] for c in prefix] == before
+
+
+@pytest.mark.parametrize(
+    "options",
+    [{"batch_size": 0}, {"batch_size": 17}, {"prefill_chunk": 0}, {"prefill_chunk": 2049}],
+)
+def test_load_rejects_wrong_batch_sizes_before_touching_the_checkpoint(
+    tmp_path, monkeypatch, options
+):
+    import hashlib
+
+    import mlx.core as mx
+
+    from rizzo_flow import backend as backend_module
+    from rizzo_flow.backend import SparkBackend
+
+    touched = []
+    digest = hashlib.file_digest
+
+    def hashed(stream, algorithm):
+        touched.append("checkpoint hash")
+        return digest(stream, algorithm)
+
+    def resolve(device):
+        touched.append("device")
+        return mx.cpu, "cpu"
+
+    monkeypatch.setattr(backend_module, "resolve", resolve)
+    monkeypatch.setattr(mx, "set_default_device", lambda device: touched.append("default device"))
+    monkeypatch.setattr(mx, "set_cache_limit", lambda limit: touched.append("cache limit"))
+    monkeypatch.setattr(hashlib, "file_digest", hashed)
+    for name in ("model.safetensors", "config.json", "tokenizer.json", "tokenizer_config.json"):
+        (tmp_path / name).write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"^batch_size must be 1–16 and prefill_chunk 1–2048$"):
+        SparkBackend.load(tmp_path, **options)
+    assert touched == []

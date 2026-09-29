@@ -7,7 +7,7 @@ import json
 import time
 from pathlib import Path
 
-from .config import FLOW_CHECKPOINTS, RUNTIME_REVISION, identify
+from .config import FLOW_CHECKPOINTS, RUNTIME_REVISION, check_limits, identify
 from .prompts import PROMPT_VERSION, Compiled, canonical
 from .runtime import resolve
 
@@ -66,8 +66,7 @@ def branch_cache(prefix_cache, batch_size):
 
 class SparkBackend:
     def __init__(self, model, tokenizer, metadata, batch_size=4, prefill_chunk=512):
-        if not 1 <= batch_size <= 16 or not 1 <= prefill_chunk <= 2048:
-            raise ValueError("batch_size must be 1–16 and prefill_chunk 1–2048")
+        check_limits(batch_size, prefill_chunk)
         self.model = model
         self.tokenizer = tokenizer
         self.metadata = metadata
@@ -81,6 +80,8 @@ class SparkBackend:
             raise ValueError(f"Model not found at {path}. Run `rizzo download` first.")
         if bits not in (None, 4, 8):
             raise ValueError("Supported precisions: BF16, 8-bit, 4-bit")
+        # Before the device, the process defaults and the checkpoint are touched.
+        check_limits(batch_size, prefill_chunk)
         target, backend = resolve(device)
         import mlx.core as mx
         from spark_mlx_llm import load

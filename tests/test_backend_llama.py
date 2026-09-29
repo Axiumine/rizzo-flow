@@ -1,10 +1,12 @@
 """llama.cpp backend logic against a recording fake session: no library, no weights."""
 
+import hashlib
+
 import pytest
 from fastapi.testclient import TestClient
 from test_service import CharacterTokenizer
 
-from rizzo_flow import backend_llama, config, loader
+from rizzo_flow import backend_llama, config, llama_release, loader
 from rizzo_flow.api import create_app
 from rizzo_flow.backend_llama import LlamaBackend, LlamaTokenizer
 from rizzo_flow.engine import Engine
@@ -319,3 +321,101 @@ def test_a_llama_decode_that_fails_is_a_503_and_the_next_request_is_served(statu
     detail = {"detail": f"llama_decode returned {status}: {reason}"}
     assert [(response.status_code, response.json()) for response in failed] == [(503, detail)] * 2
     assert [response.status_code for response in served] == [200, 200]
+
+
+# --- load: what happens before the model is in memory ----------------------------------------------
+
+META = {
+    "general.architecture": "spark2_5",
+    "spark2_5.embedding_length": "2560",
+    "general.file_type": "7",
+}
+
+
+class LoadedSession:
+    """What `Session.load` hands back for a GGUF file: its metadata, and how often it was closed."""
+
+    pad_token = 7
+    eos_token = 2
+    device = None
+    n_ctx = 8192 + 2048
+
+    def __init__(self):
+        self.closed = 0
+
+    def meta(self, key):
+        return META.get(key)
+
+    def chat_template(self):
+        return "{{ messages[0].content }}!"
+
+    def tokenize(self, text, add_special=False):
+        return [ord(character) for character in text]
+
+    def close(self):
+        self.closed += 1
+
+
+class Runtime:
+    """Stands in for `llama_cpp.Session.load` and keeps every session it hands out."""
+
+    def __init__(self):
+        self.sessions = []
+
+    def load(self, gguf, **options):
+        self.sessions.append(LoadedSession())
+        return self.sessions[-1]
+
+
+@pytest.fixture
+def native(monkeypatch, tmp_path):
+    runtime = Runtime()
+    monkeypatch.setattr(backend_llama, "Session", runtime)
+    monkeypatch.setattr(llama_release, "locate", lambda family=None: tmp_path)
+    return runtime
+
+
+@pytest.fixture
+def gguf(tmp_path):
+    path = tmp_path / "model.gguf"
+    path.write_bytes(b"GGUF stand-in for the weights")
+    return path
+
+
+@pytest.fixture
+def no_hashing(monkeypatch):
+    """Reading the weights to hash them fails the test."""
+
+    def hashed(*args, **kwargs):
+        raise AssertionError("the weights were read")
+
+    monkeypatch.setattr(hashlib, "file_digest", hashed)
+
+
+WRONG_SIZES = [{"batch_size": 17}, {"batch_size": 0}, {"prefill_chunk": 2049}, {"prefill_chunk": 0}]
+
+
+@pytest.mark.parametrize("options", WRONG_SIZES)
+def test_wrong_batch_sizes_are_refused_before_the_weights_are_hashed_or_loaded(
+    native, gguf, no_hashing, options
+):
+    with pytest.raises(ValueError, match=r"^batch_size must be 1–16 and prefill_chunk 1–2048$"):
+        LlamaBackend.load(gguf, **options)
+    assert native.sessions == []
+
+
+@pytest.mark.parametrize("options", WRONG_SIZES)
+def test_wrong_batch_sizes_do_not_leave_a_loaded_model_behind(native, gguf, options):
+    with pytest.raises(ValueError, match="batch_size must be"):
+        LlamaBackend.load(gguf, **options)
+    assert all(session.closed for session in native.sessions)
+
+
+def test_a_backend_that_cannot_be_constructed_releases_the_session(native, gguf):
+    class Unwilling(LlamaBackend):
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("no backend today")
+
+    with pytest.raises(RuntimeError, match=r"^no backend today$"):
+        Unwilling.load(gguf)
+    assert [session.closed for session in native.sessions] == [1]

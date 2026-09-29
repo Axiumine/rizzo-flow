@@ -117,8 +117,10 @@ inferenza: liberarne il contesto sotto di lui sarebbe un use after free).
   Lo state è identico per tutte le domande → prefill una volta (blocchi da 512), confine del
   prefisso verificato token per token (ultimo token scartato per i merge BPE, mai dedotto dalla
   lunghezza). `branch_cache` clona le cache native (attenzione piena + sliding-window rotante),
-  i suffissi vanno in microbatch (`--batch-size`, default 4, max 16) ordinati per lunghezza con
-  padding a destra; si legge l'ultima posizione reale. Cache scartata a fine richiesta.
+  i suffissi vanno in microbatch (`--batch-size`, default 4, max 16; `config.check_limits` controlla
+  questo e il chunk di prefill 1–2048, in entrambi i backend, prima di hashare o caricare i pesi)
+  ordinati per lunghezza con padding a destra; si legge l'ultima posizione reale. Cache scartata a
+  fine richiesta.
   `mode: "direct"` disattiva il riuso (riferimento di verifica).
 - **Contesto.** `--ctx` (alias storico `--max-tokens`, default 8192) è il limite di token per domanda
   (state + domanda): con MLX guardia, non prenotazione; con llama.cpp dimensiona anche la cache
