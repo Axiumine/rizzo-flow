@@ -1,16 +1,18 @@
 """llama.cpp backend logic against a recording fake session: no library, no weights."""
 
 import hashlib
+import re
 
 import pytest
 from fastapi.testclient import TestClient
+from test_llama_cpp import Native
 from test_service import CharacterTokenizer
 
 from rizzo_flow import backend_llama, config, llama_release, loader
 from rizzo_flow.api import create_app
 from rizzo_flow.backend_llama import LlamaBackend, LlamaTokenizer
 from rizzo_flow.engine import Engine
-from rizzo_flow.llama_cpp import Device, choose_device
+from rizzo_flow.llama_cpp import Device, Library, choose_device
 from rizzo_flow.prompts import Compiled
 
 
@@ -323,8 +325,10 @@ def test_a_llama_decode_that_fails_is_a_503_and_the_next_request_is_served(statu
     assert [response.status_code for response in served] == [200, 200]
 
 
-# --- load: what happens before the model is in memory ----------------------------------------------
+# --- load: the order of its steps ------------------------------------------------------------
 
+WEIGHTS = b"GGUF stand-in for the weights"
+TEMPLATE = "{{ messages[0].content }}!"
 META = {
     "general.architecture": "spark2_5",
     "spark2_5.embedding_length": "2560",
@@ -347,7 +351,7 @@ class LoadedSession:
         return META.get(key)
 
     def chat_template(self):
-        return "{{ messages[0].content }}!"
+        return TEMPLATE
 
     def tokenize(self, text, add_special=False):
         return [ord(character) for character in text]
@@ -357,28 +361,46 @@ class LoadedSession:
 
 
 class Runtime:
-    """Stands in for `llama_cpp.Session.load` and keeps every session it hands out."""
+    """Stands in for `llama_cpp.Session`, for `llama_cpp.Library` and for the lookup of the runtime
+    directory, and notes the order in which they are used."""
 
-    def __init__(self):
+    def __init__(self, directory):
+        self.directory = directory
+        self.located = []  # devices `llama_release.locate` was asked about
+        self.opened = []  # directories `Library.open` was asked for
+        self.calls = []  # (gguf, options) of every `Session.load`
+        self.events = []  # "locate", "open", "hash", "load", in the order they happened
         self.sessions = []
 
+    def locate(self, family=None):
+        self.located.append(family)
+        self.events.append("locate")
+        return self.directory
+
+    def open(self, directory):
+        self.opened.append(directory)
+        self.events.append("open")
+
     def load(self, gguf, **options):
+        self.calls.append((gguf, options))
+        self.events.append("load")
         self.sessions.append(LoadedSession())
         return self.sessions[-1]
 
 
 @pytest.fixture
 def native(monkeypatch, tmp_path):
-    runtime = Runtime()
+    runtime = Runtime(tmp_path / "runtime")
     monkeypatch.setattr(backend_llama, "Session", runtime)
-    monkeypatch.setattr(llama_release, "locate", lambda family=None: tmp_path)
+    monkeypatch.setattr(backend_llama, "Library", runtime)
+    monkeypatch.setattr(llama_release, "locate", runtime.locate)
     return runtime
 
 
 @pytest.fixture
 def gguf(tmp_path):
     path = tmp_path / "model.gguf"
-    path.write_bytes(b"GGUF stand-in for the weights")
+    path.write_bytes(WEIGHTS)
     return path
 
 
@@ -392,6 +414,16 @@ def no_hashing(monkeypatch):
     monkeypatch.setattr(hashlib, "file_digest", hashed)
 
 
+@pytest.fixture
+def nothing_installed(tmp_path, monkeypatch):
+    """The lookup of a runtime is the real one, on a Linux x86-64 box without NVIDIA that has no
+    runtime installed."""
+    monkeypatch.setattr(llama_release, "RUNTIMES", tmp_path / "runtimes")
+    monkeypatch.setattr(llama_release, "host", lambda: ("linux", "x64"))
+    monkeypatch.setattr(llama_release, "nvidia_driver", lambda: False)
+    monkeypatch.delenv(llama_release.RUNTIME_DIR_ENV, raising=False)
+
+
 WRONG_SIZES = [{"batch_size": 17}, {"batch_size": 0}, {"prefill_chunk": 2049}, {"prefill_chunk": 0}]
 
 
@@ -401,6 +433,9 @@ def test_wrong_batch_sizes_are_refused_before_the_weights_are_hashed_or_loaded(
 ):
     with pytest.raises(ValueError, match=r"^batch_size must be 1–16 and prefill_chunk 1–2048$"):
         LlamaBackend.load(gguf, **options)
+    assert native.located == []
+    assert native.opened == []
+    assert native.calls == []
     assert native.sessions == []
 
 
@@ -419,3 +454,96 @@ def test_a_backend_that_cannot_be_constructed_releases_the_session(native, gguf)
     with pytest.raises(RuntimeError, match=r"^no backend today$"):
         Unwilling.load(gguf)
     assert [session.closed for session in native.sessions] == [1]
+
+
+def test_the_runtime_is_found_and_opened_before_the_weights_are_hashed(native, gguf, monkeypatch):
+    sha256_file = llama_release.sha256_file
+
+    def hashed(path):
+        native.events.append("hash")
+        return sha256_file(path)
+
+    monkeypatch.setattr(llama_release, "sha256_file", hashed)
+    LlamaBackend.load(gguf, device="cuda")
+    assert native.events == ["locate", "open", "hash", "load"]
+    native.events.clear()
+    LlamaBackend.load(gguf, runtime_dir=native.directory)  # a directory that is given: no lookup
+    assert native.events == ["open", "hash", "load"]
+
+
+def test_load_looks_for_the_runtime_of_the_device_unless_a_directory_is_given(
+    native, gguf, tmp_path
+):
+    LlamaBackend.load(gguf, device="cuda")
+    assert native.located == ["cuda"]
+    assert native.calls[0][1]["directory"] == native.directory
+    assert native.opened == [native.directory]
+    LlamaBackend.load(gguf, device="cuda", runtime_dir=tmp_path)
+    assert native.located == ["cuda"]  # not asked again
+    assert native.calls[1][1]["directory"] == tmp_path
+    assert native.opened == [native.directory, tmp_path]
+
+
+def test_a_runtime_that_is_not_installed_is_refused_before_the_weights_are_hashed(
+    gguf, no_hashing, nothing_installed
+):
+    message = (
+        "llama.cpp runtime not installed. Run `rizzo download` (runtime + weights) or "
+        "`rizzo download --only runtime`; or set RIZZO_LLAMA_DIR to a build of "
+        f"{llama_release.COMMIT[:7]}."
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        LlamaBackend.load(gguf)
+
+
+def test_a_directory_of_the_environment_without_the_library_is_refused_before_the_hash(
+    gguf, tmp_path, monkeypatch, no_hashing
+):
+    monkeypatch.setenv(llama_release.RUNTIME_DIR_ENV, str(tmp_path))
+    message = f"RIZZO_LLAMA_DIR={tmp_path}: {llama_release.library_name()} not found there"
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        LlamaBackend.load(gguf)
+
+
+def test_a_directory_that_is_given_without_the_library_is_refused_before_the_hash(
+    gguf, tmp_path, monkeypatch, no_hashing
+):
+    monkeypatch.setattr(Library, "_loaded", {})
+    message = f"{llama_release.library_name()} not found in {tmp_path.resolve()}"
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        LlamaBackend.load(gguf, runtime_dir=tmp_path)
+    assert Library._loaded == {}
+
+
+def test_a_runtime_of_another_build_is_refused_before_the_weights_are_hashed(
+    tmp_path, monkeypatch, no_hashing
+):
+    monkeypatch.setattr(Library, "_loaded", {})
+    build = Native().install(tmp_path, monkeypatch)
+    build.libraries["llama"].exports.pop("llama_decode")  # a function the binding calls
+    message = (
+        f"{build.directory.resolve()}: symbol llama_decode is missing; the runtime must be "
+        f"llama.cpp {llama_release.RELEASE} ({llama_release.COMMIT[:7]})"
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        LlamaBackend.load(build.gguf, runtime_dir=build.directory)
+    assert build.model_loads == []  # the weights were never asked for either
+
+
+def test_the_session_uses_the_library_that_was_opened_before_the_hash(tmp_path, monkeypatch):
+    monkeypatch.setattr(Library, "_loaded", {})
+    build = Native().install(tmp_path, monkeypatch)
+    build.metadata = {
+        b"general.architecture": b"spark2_5",
+        b"spark2_5.embedding_length": b"2560",
+        b"general.file_type": b"7",
+    }
+    build.template = TEMPLATE.encode()
+    LlamaBackend.load(build.gguf, runtime_dir=build.directory).close()
+    # Backends register globally in ggml: a second instance of the runtime is never made.
+    assert len(build.loads) == 3
+    assert build.calls("ggml_backend_load_all_from_path") == [
+        (str(build.directory.resolve()).encode(),)
+    ]
+    assert build.calls("llama_backend_init") == [()]
+    assert len(build.model_loads) == 1

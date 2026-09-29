@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import llama_release
 from .config import GGUF, check_limits, identify
-from .llama_cpp import Session
+from .llama_cpp import Library, Session
 from .prompts import PROMPT_VERSION, Compiled, canonical
 
 N_BATCH = 2048  # most tokens handed to one llama_decode call
@@ -75,15 +75,18 @@ class LlamaBackend:
             raise ValueError("ctx must be positive")
         check_limits(batch_size, prefill_chunk)  # before the hash and the ~10 s model load
         started = time.perf_counter()
+        # The runtime before the weights: one that is missing, or is not the pinned build, fails at
+        # once instead of after the hash has read gigabytes. `Session.load` finds it already open.
+        directory = runtime_dir or llama_release.locate(device)
+        Library.open(directory)
         # Hash the weights once at startup for auditability and calibration binding.
-        with path.open("rb") as stream:
-            sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        sha256 = llama_release.sha256_file(path)
         pin = next((spec for spec in GGUF.values() if spec.sha256 == sha256), None)
         # The longest question is `ctx` tokens; a microbatch adds at most N_BATCH suffix tokens
         # on top of the prefix they share, so this many cells always suffice.
         session = Session.load(
             path,
-            directory=runtime_dir or llama_release.locate(device),
+            directory=directory,
             device=device,
             n_ctx=ctx + N_BATCH,
             n_batch=N_BATCH,
