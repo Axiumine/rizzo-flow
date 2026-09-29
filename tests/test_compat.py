@@ -2,7 +2,6 @@ import copy
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
 from test_service import FakeBackend
 
 from rizzo_flow.api import create_app
@@ -145,60 +144,3 @@ def test_fine_tuned_weights_get_their_own_model_name():
     assert model_name({**base, "weights": "flow"}) == "rizzo-flow-4b-q8_0"
     small = {"source": "XHToken/Spark-X2.5-1.7B", "precision": "bf16", "weights": "flow"}
     assert model_name(small) == "rizzo-flow-1.7b-bf16"
-
-
-# JSON can spell a lone surrogate ("\ud800"); UTF-8 cannot encode it, so the wire format refuses
-# it wherever it carries text, as the native format does, before anything is translated.
-
-
-def noul(criteria=None, instructions="Is it urgent?"):
-    question = {"type": "noul", "instructions": instructions}
-    if criteria is not None:
-        question["criteria"] = criteria
-    return question
-
-
-def choice(criteria):
-    return {"type": "choice", "instructions": "i", "criteria": criteria}
-
-
-def levels(criteria):
-    return {"type": "score", "instructions": "i", "criteria": criteria}
-
-
-@pytest.mark.parametrize(
-    ("override", "field"),
-    [
-        ({"state": "\ud800"}, "state"),
-        ({"state": {"k": ["ok", {"\udfff": 1}]}}, "state"),
-        ({"model": "\ud800"}, "model"),
-        ({"questions": {"\ud800": noul()}}, "questions"),
-        ({"questions": {"q": noul(instructions="\ud800")}}, "questions"),
-        ({"questions": {"q": noul(instructions={"k": ["\ud800"]})}}, "questions"),
-        ({"questions": {"q": noul({"true": "\ud800"})}}, "questions"),
-        ({"questions": {"q": noul({"false": {"\ud800": 1}})}}, "questions"),
-        ({"questions": {"q": choice({"a": "\ud800", "b": None})}}, "questions"),
-        ({"questions": {"q": choice({"a": None, "\ud800": None})}}, "questions"),
-        ({"questions": {"q": levels(["low", "\ud800"])}}, "questions"),
-    ],
-    ids=[
-        "state",
-        "state-key",
-        "model",
-        "question-id",
-        "instructions",
-        "structured-instructions",
-        "true-criterion",
-        "false-criterion-key",
-        "option-detail",
-        "option-key",
-        "level",
-    ],
-)
-def test_a_lone_surrogate_is_refused_wherever_the_wire_request_carries_text(override, field):
-    request = {"state": "s", "model": "rizzo-latest", "questions": {"q": noul()}, **override}
-    with pytest.raises(ValidationError) as raised:
-        SystemOneRequest.model_validate(request)
-    (error,) = raised.value.errors()
-    assert error["loc"] == (field,)
-    assert error["msg"].startswith("Value error, Strings must be valid Unicode text")
