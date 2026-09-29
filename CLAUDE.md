@@ -30,18 +30,20 @@ il README pubblico è in inglese, quello italiano storico è in `docs/README.it.
 ## Comandi
 
 ```bash
-uv sync --extra test --locked                     # llama.cpp non richiede extra; MLX: --extra mlx|cuda|cpu
+uv sync --extra test --extra cpu --locked         # llama.cpp non richiede extra; MLX (serve alla copertura 100%): --extra mlx|cuda|cpu
 .venv/bin/rizzo download                          # runtime llama.cpp per questa macchina (runtimes/) + GGUF fine-tuned Q8_0 (~4.4 GB, models/rizzo-flow/); --weights base = XHToken
 .venv/bin/rizzo download --only runtime --runtime vulkan   # un'altra build; --backend mlx scarica i pesi originali (~8 GB)
 .venv/bin/rizzo devices                           # device visti da llama.cpp e scelta di auto; su Windows gli eseguibili sono in .venv/Scripts/
-.venv/bin/pytest -q                               # 82 test (+6 saltati), nessun peso richiesto
+.venv/bin/pytest -q                               # circa 1790 test (+6 saltati), ordine casuale, nessun peso, nessuna rete
+.venv/bin/pytest -q --cov                         # + gate di copertura: 100% righe e rami (~20 s)
 RIZZO_REAL=1 .venv/bin/pytest -q -m integration   # 6 test con runtime e GGUF reali (il più piccolo Q8_0 presente)
 .venv/bin/pytest tests/test_compat.py::test_systemone_wire_shape   # test singolo
 .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy
+.venv/bin/mutmut run                              # mutation testing (qualche minuto), poi: mutmut results
 .venv/bin/rizzo serve                             # API + playground su 127.0.0.1:8017 (MLX: --backend mlx --bits 8)
 .venv/bin/rizzo decide examples/ticket.json       # --quant q8_0|q4_k_m|bf16, --device auto|gpu|cpu|cuda|vulkan|metal|rocm|sycl
 .venv/bin/rizzo evaluate benchmarks/smoke.jsonl --compare-modes --output results/local-x.json
-.venv/bin/rizzo schema > request.schema.json      # rigenerare dopo modifiche a schema.py
+.venv/bin/rizzo schema > request.schema.json      # rigenerare dopo modifiche a schema.py (con --response: response.schema.json); test_schema_files.py fallisce se sono vecchi
 .venv/bin/python scripts/validate_checkpoint.py --output results/local-validation
 .venv/bin/python scripts/semif_compare.py --system rizzo --semif .research/SemIf --output results/local-semif
 .venv/bin/python scripts/semif_report.py results/local-semif --semif .research/SemIf --against NOME=CARTELLA   # held-out + differenze appaiate
@@ -58,9 +60,31 @@ I test non caricano mai il checkpoint 4B: `test_service.py`/`test_compat.py` usa
 + `CharacterTokenizer` (il fake favorisce sempre il secondo candidato); `test_backend_llama.py` usa
 una `FakeSession` che registra ogni chiamata (token, posizioni, sequenze, righe di logit lette);
 `test_llama_release.py` copre scelta del pacchetto, download ripreso (server HTTP locale che cade a
-metà), sha256 ed estrazione sicura, senza rete; `test_mlx.py` usa la vera architettura Spark ridotta
-con pesi casuali (saltato senza MLX); `test_llama_real.py` è opt-in (`RIZZO_REAL=1`). La verifica sul modello reale si fa a mano (server +
+metà), sha256 ed estrazione sicura, senza rete; `test_mlx.py` e `test_backend_mlx.py` usano la vera
+architettura Spark ridotta con pesi casuali (saltati senza MLX; il secondo carica da cartelle di checkpoint
+finte e da un `spark_mlx_llm.load` finto); `test_llama_real.py` è opt-in (`RIZZO_REAL=1`). La verifica sul modello reale si fa a mano (server +
 curl/playground) o con `validate_checkpoint.py`.
+
+La suite (circa 1790 test) è scritta per Linux, macOS e Windows (la CI la lancia su tutti e tre, con il gate
+di copertura e Python 3.11 e 3.14), senza rete, GPU, pesi né un vero runtime
+llama.cpp, e gira in ordine casuale (`pytest-randomly`: il seme sta nell'intestazione, che `-q` nasconde; `--randomly-seed=N` rifà
+un ordine, `-p no:randomly` lo fissa) con timeout di 120 s per test. Un `test_<modulo>.py` per modulo (`test_cli.py`, `test_config.py`, `test_api.py`,
+`test_engine.py`, ...; `test_llama_cpp.py` sostituisce la libreria nativa con la finta `Native`);
+`test_core_*.py` per nucleo puro e pagine (`test_core_pages.py` tiene allineati i dizionari IT/EN di
+playground e snake; `test_core_flows.py` prova cli/loader → `LlamaBackend` → `Session` → `Engine` →
+`Response` sostituendo solo la libreria nativa, così quello che un modulo promette e quello che il
+successivo si aspetta devono coincidere); `test_properties.py` (Hypothesis, pochi esempi derandomizzati:
+un fallimento si riproduce su ogni macchina; per cacciare si alza `max_examples`);
+`test_prompt_snapshot.py` (hash dei prompt resi, legato a `PROMPT_VERSION`: cambiare il testo di un prompt
+senza cambiare versione fa fallire il test, ed è lì che si ricorda che le calibrazioni si invalidano; con
+la nuova versione si aggiornano `RECORDED_VERSION` e `RECORDED_HASHES` del test);
+`test_schema_files.py` (`request.schema.json` e `response.schema.json` coincidono con i modelli);
+`test_mutation_*.py` (un test per ogni mutante che gli altri lasciavano passare: la docstring dice quale
+modifica); `test_pyproject.py` fissa i minimi di Python e FastAPI e `test_tooling_*.py` guarda gli strumenti
+attorno al codice (l'LF dei report di `scripts/`, il client della skill). `conftest.py` ha due fixture
+automatiche: `no_proxy` (i server locali si raggiungono direttamente, anche con un proxy di ambiente o
+di sistema) e `caller_environment` (toglie `RIZZO_LLAMA_LOG` e fissa `COLUMNS=200`: quello che la shell
+esporta non deve cambiare un risultato).
 
 ## Architettura (flusso di una richiesta)
 

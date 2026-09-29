@@ -666,14 +666,25 @@ did not change with the runtime: llama.cpp receives byte-identical prompts and t
 ## Development
 
 ```bash
-uv sync --locked --extra test
-uv run pytest -q                        # 82 tests, no weights needed
-RIZZO_REAL=1 uv run pytest -q -m integration   # 4 more, on the real runtime and GGUF weights
+uv sync --locked --extra test --extra cpu      # macOS: --extra mlx instead of --extra cpu
+uv run pytest -q --cov                         # about 1,790 tests, no weights or network; fails below 100% line and branch coverage
+RIZZO_REAL=1 uv run pytest -q -m integration   # 6 more, on the real runtime and GGUF weights
 uv run ruff check . && uv run ruff format --check . && uv run mypy   # lint, format, types
+uv run mutmut run                              # mutation testing, a few minutes (see below)
 uv run rizzo evaluate benchmarks/smoke.jsonl --compare-modes --output results/local-smoke.json
 uv run python scripts/semif_compare.py --system rizzo --semif ../SemIf --output results/local-semif
 uv run python scripts/semif_report.py results/local-semif --semif ../SemIf   # held-out halves, paired differences
 ```
+
+The coverage gate includes the MLX backend, so the test environment needs one MLX extra (`cpu` installs
+anywhere; its tests use a tiny random-weight model). The tests run in random order (a run without `-q`
+prints the seed in its header; `--randomly-seed=N` repeats an order, `-p no:randomly` fixes it), must pass
+on Linux, macOS and Windows without network, GPU, weights or a real llama.cpp runtime, and a warning
+raised by our own code or tests is an error. CI (`.github/workflows/ci.yml`) runs them, gate included, on all three with
+Python 3.11 and 3.14. Full coverage says that every line and branch runs, not that the tests are
+right: that is what mutation testing is for. `mutmut run` edits the code one place at a time and reruns the
+tests that reach it; `mutmut results` lists the edits the tests let through. It needs `fork` (Linux, macOS,
+WSL) and is configured under `[tool.mutmut]` in `pyproject.toml`.
 
 Architecture notes and the current state of the work: [CLAUDE.md](CLAUDE.md) (Italian).
 

@@ -303,8 +303,10 @@ stato misurato sull'intero benchmark).
 ## Misurazioni e calibrazione
 
 ```bash
-.venv/bin/pytest -q
+uv sync --locked --extra test --extra cpu   # macOS: --extra mlx; serve un extra MLX per la copertura al 100%
+.venv/bin/pytest -q --cov                   # circa 1790 test; il gate fallisce sotto il 100% di righe e rami
 .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy   # lint, formato, tipi
+.venv/bin/mutmut run                        # mutation testing, qualche minuto (vedi sotto)
 .venv/bin/rizzo evaluate benchmarks/smoke.jsonl --compare-modes --output results/my-smoke.json
 .venv/bin/rizzo evaluate benchmarks/perturbations.jsonl --output results/my-perturbations.json
 .venv/bin/python scripts/validate_checkpoint.py --output results/my-q8-validation
@@ -323,6 +325,15 @@ ripreso dopo un'interruzione, sha256 ed estrazione sicura senza rete. I test MLX
 non è installato) usano l'architettura Spark reale con pesi casuali piccoli e verificano la proiezione
 selettiva contro l'intero vocabolario, isolamento delle cache, confini sliding-window, batch con
 lunghezze diverse e quantizzazione. Il validatore usa invece i pesi 4B reali, API, fixture e stato lungo.
+
+La suite (circa 1790 test) gira in ordine casuale (il seme sta nell'intestazione, che `-q` nasconde;
+`--randomly-seed=N` rifà un ordine, `-p no:randomly` lo fissa), senza rete, GPU, pesi né un vero runtime llama.cpp,
+ed è scritta per Linux, macOS e Windows: la CI (`.github/workflows/ci.yml`) la lancia su tutti e tre, con
+il gate di copertura e con Python 3.11 e 3.14; un warning sollevato dal nostro codice o dai test è un errore.
+La copertura al 100% dice che ogni riga e ramo girano, non che i test siano giusti: per questo c'è il
+mutation testing. `mutmut run` modifica il codice un punto alla volta e rilancia i test che lo toccano,
+`mutmut results` elenca le modifiche che i test lasciano passare; serve `fork` (Linux, macOS, WSL) e la
+configurazione sta in `[tool.mutmut]` di `pyproject.toml`.
 
 Gli output sono **create-only**: un `--output` già esistente (anche un symlink pendente) viene rifiutato
 prima di caricare il modello, insieme alle fixture non valide. I report conservano distribuzioni,
