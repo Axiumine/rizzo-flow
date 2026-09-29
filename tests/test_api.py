@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from test_service import FakeBackend
 
 from rizzo_flow import api
-from rizzo_flow.api import create_app, jsonable
+from rizzo_flow.api import API_KEY_ENV, check_api_key, create_app, jsonable
 from rizzo_flow.engine import Engine
 
 JSON = {"content-type": "application/json"}
@@ -31,9 +31,9 @@ class RecordingBackend(FakeBackend):
         return super().score(prefix, jobs, mode)
 
 
-def make_client(raise_server_exceptions=True):
+def make_client(api_key="", raise_server_exceptions=True):
     backend = RecordingBackend()
-    app = create_app(Engine(backend), api_key="")
+    app = create_app(Engine(backend), api_key=api_key)
     return TestClient(app, raise_server_exceptions=raise_server_exceptions), backend
 
 
@@ -205,6 +205,38 @@ def test_a_state_nested_beyond_what_pydantic_follows_is_a_422_on_every_platform(
     assert response.status_code == 422
     assert {error["type"] for error in response.json()["detail"]} >= {"recursion_loop"}
     assert backend.calls == []
+
+
+# the API key -------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("key", ["clé", "密钥"])
+def test_a_key_that_is_not_ascii_is_refused_at_startup(key, monkeypatch):
+    # The server reads header bytes as Latin-1 and clients write them in other ways: a key
+    # with characters above 0x7f would lock out the clients that send it in the other one.
+    engine = Engine(RecordingBackend())
+    with pytest.raises(ValueError, match=r"^RIZZO_API_KEY must be ASCII$"):
+        create_app(engine, api_key=key)
+    monkeypatch.setenv(API_KEY_ENV, key)
+    with pytest.raises(ValueError, match=r"^RIZZO_API_KEY must be ASCII$"):
+        create_app(engine)
+    assert create_app(engine, api_key="")  # an explicit empty key ignores the environment
+
+
+def test_check_api_key_gives_the_key_that_authorization_will_use(monkeypatch):
+    monkeypatch.setenv(API_KEY_ENV, "from-env")
+    assert check_api_key() == "from-env"
+    assert check_api_key("explicit") == "explicit"
+    assert check_api_key("") == ""  # an explicit empty key ignores the environment, ASCII or not
+    monkeypatch.delenv(API_KEY_ENV)
+    assert check_api_key() is None
+
+
+def test_any_ascii_key_works_as_a_bearer_token():
+    key = "".join(chr(code) for code in range(0x21, 0x7F))  # every printable ASCII character
+    client, _ = make_client(api_key=key)
+    assert client.get("/v1/models", headers={"Authorization": f"Bearer {key}"}).status_code == 200
+    assert client.get("/v1/models", headers={"Authorization": "Bearer x"}).status_code == 401
 
 
 # lone surrogates ---------------------------------------------------------------------------------

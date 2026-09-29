@@ -167,7 +167,7 @@ for the original file (`rizzo-latest` always works).
 `rizzo serve` flags: `--size`, `--quant`, `--weights flow|base`, `--device auto|gpu|cpu|cuda|vulkan|metal|rocm|sycl`,
 `--port`, `--host`, `--batch-size` (question micro-batch, default 4), `--ctx` (token limit per
 question, default 8192), `--threads` (CPU), `--model /path/to/file.gguf` (overrides `--size`),
-`--calibration fit.json`. Set `RIZZO_API_KEY=...` before starting for Bearer auth on the
+`--calibration fit.json`. Set `RIZZO_API_KEY=...` (ASCII) before starting for Bearer auth on the
 Jev-compatible endpoints. The model loads in about 10 seconds.
 
 Quantization changes probabilities, and so does the hardware (CUDA, Vulkan and Metal round
@@ -439,12 +439,13 @@ the real SDK). **The interface is compatible, the model is not Jev:**
 - **At most 26 options per `choice`** (the hosted API documents 255): every option is one answer
   letter. Beyond that, split the question into two stages.
 - `x_rizzo` (timings, fingerprint) is an extension outside the contract.
-- Bearer auth like the original, enforced only if `RIZZO_API_KEY` is set. Errors: 401 (missing or
-  wrong key); 422 (invalid request or over a limit, a lone surrogate such as the JSON escape
-  `"\ud800"` — valid JSON, but UTF-8 cannot encode it — or a body sent without a JSON
-  `Content-Type`); and 400 (`{"error_type": "api_usage_error"}`) for a model name this server does
-  not answer for. `/v1/decisions` answers 422 the same way. The `detail` of a 422 echoes the
-  offending input, cut at 100 levels of nesting.
+- Bearer auth like the original, enforced only if `RIZZO_API_KEY` is set (ASCII only: the server
+  refuses to start with another key). Errors: 401 (missing or wrong key); 422 (invalid request or
+  over a limit, a lone surrogate such as the JSON escape `"\ud800"` — valid JSON, but UTF-8 cannot
+  encode it — or a body sent without a JSON `Content-Type`); and 400
+  (`{"error_type": "api_usage_error"}`) for a model name this server does not answer for.
+  `/v1/decisions` answers 422 the same way. The `detail` of a 422 echoes the offending input, cut at
+  100 levels of nesting.
 
 **Asking many questions at once is the point.** All questions in one request share the state's KV
 cache: 8 yes/no questions on a 218-token contract cost 1 prefill + 2 micro-batches, 136 ms of

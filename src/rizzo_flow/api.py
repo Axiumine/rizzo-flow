@@ -53,13 +53,27 @@ def jsonable(value, depth=0):
     return str(value).encode("utf-8", "backslashreplace").decode("utf-8")
 
 
+def check_api_key(api_key=None):
+    """The key that Bearer auth compares with: `api_key`, else RIZZO_API_KEY (empty: no auth).
+
+    One with characters above 0x7f is a ValueError. The server reads header bytes as Latin-1;
+    clients write those characters as Latin-1 (browsers, Python), as UTF-8 (curl) or not at all
+    (beyond Latin-1). No single comparison serves them all, so the key has to be ASCII.
+    `rizzo serve` asks before it loads the model, `create_app` again for every other caller.
+    """
+    key = api_key if api_key is not None else os.environ.get(API_KEY_ENV)
+    if key and not key.isascii():
+        raise ValueError(f"{API_KEY_ENV} must be ASCII")
+    return key
+
+
 def create_app(engine, api_key=None):
     app = FastAPI(
         title="Rizzo Flow",
         version="0.2.0",
         description="Typed decisions with a local Spark-X2.5 model; no text generation.",
     )
-    api_key = api_key if api_key is not None else os.environ.get(API_KEY_ENV)
+    api_key = check_api_key(api_key)
 
     @app.exception_handler(RequestValidationError)
     def invalid_request(request: HttpRequest, error: RequestValidationError):

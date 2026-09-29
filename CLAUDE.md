@@ -146,7 +146,10 @@ richieste HTTP concorrenti sono serializzate; il parallelismo è *dentro* la ric
   reale non è pubblica, non è calibrata). `model` accetta `rizzo-latest`, l'ID locale e qualunque
   `jev-*`; la risposta riporta **sempre** l'ID locale (`rizzo-spark-x2.5-4b-q8_0`), mai Jev.
   `usage.output_tokens` è sempre 0. Tempi/fingerprint in `x_rizzo` (estensione; gli SDK TypeSafe
-  ignorano campi extra). Bearer auth solo se è impostata `RIZZO_API_KEY`. Pensato per funzionare
+  ignorano campi extra). Bearer auth solo se è impostata `RIZZO_API_KEY` (solo ASCII: il server legge
+  gli header come Latin-1 e i client li scrivono in Latin-1, in UTF-8 o non li scrivono, nessun
+  confronto vale per tutti, quindi `api.check_api_key` rifiuta una chiave non ASCII: `rizzo serve` la
+  controlla prima di caricare il modello, `create_app` per ogni altro chiamante). Pensato per funzionare
   con gli SDK ufficiali via `TYPESAFE_BASE_URL=http://127.0.0.1:8017` (non ancora provato con
   l'SDK reale).
 - **Corpo JSON** (entrambi gli endpoint). Un corpo senza `Content-Type` JSON è un 422 (`fastapi>=0.132`,

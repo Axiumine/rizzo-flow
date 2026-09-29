@@ -177,6 +177,11 @@ def main():
             from .schema import Request
 
             request = Request.model_validate_json(args.input.read_text(encoding="utf-8"))
+        if args.command == "serve":
+            from .api import check_api_key
+
+            # A key the server refuses is found now, not after the weights have loaded.
+            check_api_key()
         from .loader import load_backend
 
         backend = load_backend(

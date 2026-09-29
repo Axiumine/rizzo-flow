@@ -103,7 +103,8 @@ distribution over anchors, not statistical intervals.
 ## Compatible: `POST /v1/systemone`
 
 Same shape as the public TypeSafe API (<https://docs.typesafe.ai/api>). Optional
-`Authorization: Bearer <RIZZO_API_KEY>` (enforced only if the server has that variable).
+`Authorization: Bearer <RIZZO_API_KEY>` (enforced only if the server has that variable; the key has to be
+ASCII, the server refuses to start with another).
 
 ### Request
 
