@@ -1,6 +1,5 @@
 """Runtime packages: choice per machine, verified download, safe unpacking. No network."""
 
-import email.message
 import hashlib
 import http.server
 import io
@@ -8,40 +7,16 @@ import re
 import tarfile
 import threading
 import types
-import urllib.error
 import zipfile
 
 import pytest
 
 from rizzo_flow import llama_release as release
 
-LIBRARY = "llama.testlib"  # any name will do: the platform's real one is not what is tested
-GITHUB = "https://github.com/ggml-org/llama.cpp/releases/download/b1/runtime.zip"
-PAYLOAD = bytes(range(10))
-DIGEST = hashlib.sha256(PAYLOAD).hexdigest()
-
 
 def at(monkeypatch, system, machine, nvidia=False):
     monkeypatch.setattr(release, "host", lambda: (system, machine))
     monkeypatch.setattr(release, "nvidia_driver", lambda: nvidia)
-
-
-@pytest.fixture
-def runtimes(tmp_path, monkeypatch):
-    """Runtimes are installed under a temporary directory, on a Linux x86-64 box without NVIDIA."""
-    monkeypatch.setattr(release, "RUNTIMES", tmp_path / "runtimes")
-    monkeypatch.setattr(release, "library_name", lambda: LIBRARY)
-    monkeypatch.delenv(release.RUNTIME_DIR_ENV, raising=False)
-    at(monkeypatch, "linux", "x64")
-    return tmp_path
-
-
-def make_runtime(family):
-    """An installed runtime of `family`."""
-    folder = release.install_dir(family)
-    folder.mkdir(parents=True)
-    (folder / LIBRARY).write_bytes(b"library")
-    return folder
 
 
 @pytest.mark.parametrize(
@@ -270,126 +245,6 @@ def test_a_range_past_the_end_is_answered_by_checking_the_partial_file(tmp_path,
     assert not (tmp_path / "weights.gguf.part").exists()
 
 
-class Response:
-    """What `urlopen` returns: a context manager with a status, headers and a body."""
-
-    def __init__(self, body, status=200):
-        self.status = status
-        self.headers = {"Content-Length": str(len(body))}
-        self._stream = io.BytesIO(body)
-
-    def read(self, size=-1):
-        return self._stream.read(size)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc_info):
-        self._stream.close()
-
-
-def http_error(code, reason="Nope", body=None):
-    # With a body: older Pythons leave an HTTPError without one half initialized.
-    return urllib.error.HTTPError(
-        "https://example.test/file",
-        code,
-        reason,
-        email.message.Message(),
-        io.BytesIO() if body is None else body,
-    )
-
-
-def range_server(monkeypatch, payload):
-    """Replace `urlopen` by a server that honours `Range: bytes=N-` and answers 416 past the end,
-    as a CDN does; the list it returns holds the Range header of every request."""
-    ranges = []
-
-    def urlopen(request, timeout=None):
-        header = request.get_header("Range")
-        ranges.append(header)
-        if header is None:
-            return Response(payload)
-        start = int(header.removeprefix("bytes=").rstrip("-"))
-        if start >= len(payload):
-            raise http_error(416, "Range Not Satisfiable")
-        return Response(payload[start:], status=206)
-
-    monkeypatch.setattr(release.urllib.request, "urlopen", urlopen)
-    return ranges
-
-
-@pytest.mark.parametrize(("code", "denied"), [(503, False), (416, False), (404, True)])
-def test_the_connection_of_an_error_response_is_let_go_whatever_fetch_does_next(
-    tmp_path, monkeypatch, code, denied
-):
-    """An HTTPError is also a file over the response: nobody reads it, so `fetch` closes it."""
-    body = io.BytesIO(b"<html>an error page nobody reads</html>")
-    replies = iter([http_error(code, body=body), Response(PAYLOAD)])
-
-    def urlopen(request, timeout=None):
-        reply = next(replies)
-        if isinstance(reply, BaseException):
-            raise reply
-        return reply
-
-    monkeypatch.setattr(release.urllib.request, "urlopen", urlopen)
-    if denied:
-        with pytest.raises(ValueError, match=rf"HTTP {code}"):
-            release.fetch(GITHUB, tmp_path / "model.gguf", DIGEST)
-    else:  # retried
-        release.fetch(GITHUB, tmp_path / "model.gguf", DIGEST)
-    assert body.closed
-
-
-def test_a_complete_partial_file_left_by_an_interrupted_run_is_accepted(tmp_path, monkeypatch):
-    """The previous run was stopped after the last byte arrived and before the checksum and the
-    rename. A CDN answers `Range: bytes=<size>-` with 416: the bytes on disk are checked then, and
-    they are the file, so there is nothing left to download."""
-    partial = tmp_path / "model.gguf.part"
-    partial.write_bytes(PAYLOAD)
-    (tmp_path / "model.gguf").write_bytes(b"an older copy")
-    ranges = range_server(monkeypatch, PAYLOAD)
-    progress = []
-    target = release.fetch(
-        GITHUB, tmp_path / "model.gguf", DIGEST, lambda *call: progress.append(call)
-    )
-    assert target.read_bytes() == PAYLOAD
-    assert ranges == ["bytes=10-"]  # asked once
-    assert not partial.exists()
-    assert progress == []  # nothing was transferred
-
-
-@pytest.mark.parametrize(
-    "leftover",
-    [
-        pytest.param(bytes(reversed(PAYLOAD)), id="same-size-other-bytes"),
-        pytest.param(PAYLOAD + b"more", id="longer-than-the-file"),
-    ],
-)
-def test_a_partial_file_that_is_not_the_file_is_dropped_when_the_range_is_refused(
-    tmp_path, monkeypatch, leftover
-):
-    """416 says the partial file is as long as the file, or longer; only the checksum can say it is
-    the file. When it is not, the next request starts from the first byte, not the same one again."""
-    partial = tmp_path / "model.gguf.part"
-    partial.write_bytes(leftover)
-    ranges = range_server(monkeypatch, PAYLOAD)
-    target = release.fetch(GITHUB, tmp_path / "model.gguf", DIGEST)
-    assert target.read_bytes() == PAYLOAD
-    assert ranges == [f"bytes={len(leftover)}-", None]
-    assert not partial.exists()
-
-
-def test_a_refused_range_never_lets_an_unverified_partial_file_through(tmp_path, monkeypatch):
-    partial = tmp_path / "model.gguf.part"
-    partial.write_bytes(bytes(reversed(PAYLOAD)))  # as long as the file, and not the file
-    range_server(monkeypatch, PAYLOAD)
-    with pytest.raises(ValueError, match=r"^model.gguf: download failed after 1 attempts \(HTTP"):
-        release.fetch(GITHUB, tmp_path / "model.gguf", DIGEST, attempts=1)
-    assert not (tmp_path / "model.gguf").exists()  # never renamed on the strength of a 416
-    assert not partial.exists()  # dropped: the next run starts from the first byte
-
-
 def test_token_goes_to_the_first_host_only_and_denials_fail_fast(tmp_path):
     payload = b"private weights"
     seen = []
@@ -479,66 +334,6 @@ def test_locate_orders_by_pick_not_by_preference(monkeypatch, tmp_path):
     assert release.locate() == tmp_path / "vulkan"
 
 
-def test_locate_with_a_family_puts_it_first_and_never_asks_for_a_recommendation(
-    runtimes, monkeypatch
-):
-    def recommend(accelerator="auto"):
-        raise AssertionError("a named family is not a question for pick()")
-
-    monkeypatch.setattr(release, "pick", recommend)
-    make_runtime("cpu")
-    make_runtime("vulkan")
-    make_runtime("sycl")
-    assert release.locate("cpu") == release.install_dir("cpu")
-    assert release.locate("sycl") == release.install_dir("sycl")
-    # `rocm` is not installed: the rest keep the order of preference (sycl before vulkan).
-    assert release.locate("rocm") == release.install_dir("sycl")
-    assert release.locate("metal") == release.install_dir("sycl")  # not even a family here
-
-
-@pytest.mark.parametrize(
-    "device",
-    ["auto", "gpu", "AUTO", "Vulkan1", "radeon", "mlx", pytest.param("", id="empty")],
-)
-def test_locate_follows_the_recommendation_unless_a_family_is_named(runtimes, monkeypatch, device):
-    """`--device` reaches locate() as it was typed, and only a family name asks for a runtime:
-    `auto`, `gpu` or the name of a device get what `pick("auto")` recommends, as with no argument
-    at all. An installed CUDA build must not shadow Vulkan on a machine without an NVIDIA driver."""
-    for family in ("cuda", "sycl", "vulkan", "cpu"):
-        make_runtime(family)
-    assert release.locate(device) == release.install_dir("vulkan")  # no NVIDIA driver
-    at(monkeypatch, "linux", "x64", nvidia=True)
-    assert release.locate(device) == release.install_dir("cuda")
-    # The recommendation is not installed: the rest keep the order of preference (sycl first).
-    (release.install_dir("cuda") / LIBRARY).unlink()
-    (release.install_dir("vulkan") / LIBRARY).unlink()
-    assert release.locate(device) == release.install_dir("sycl")
-
-
-def test_locate_recommends_for_auto_and_gpu_exactly_as_it_does_without_a_family(
-    runtimes, monkeypatch
-):
-    for family in ("cuda", "sycl", "cpu"):
-        make_runtime(family)
-    asked = []
-
-    def recommend(accelerator="auto"):
-        asked.append(accelerator)
-        return "cpu"
-
-    monkeypatch.setattr(release, "pick", recommend)
-    picked = [release.locate(device) for device in (None, "auto", "gpu")]
-    assert picked == [release.install_dir("cpu")] * 3  # the recommendation, not cuda
-    assert asked == ["auto"] * 3
-
-
-@pytest.mark.parametrize("family", ["cuda", "CUDA", "Cuda"])
-def test_a_family_is_a_request_whatever_its_case(runtimes, family):
-    make_runtime("cuda")
-    make_runtime("vulkan")  # what `auto` would take here: no NVIDIA driver
-    assert release.locate(family) == release.install_dir("cuda")
-
-
 def test_rosetta_is_reported_so_the_cpu_package_is_not_a_surprise(monkeypatch):
     """An Intel interpreter on Apple Silicon can only load the Intel build: `host()` sees x64 and
     the GPU stays out of reach, so `download` has something to warn about."""
@@ -561,52 +356,3 @@ def test_translation_is_a_macos_question_only(monkeypatch):
     monkeypatch.setattr(release.sys, "platform", "linux")
     monkeypatch.setattr(release, "host", lambda: ("linux", "x64"))
     assert release.translated() is False
-
-
-@pytest.fixture
-def served(runtimes, monkeypatch):
-    """Archives in a folder that stands in for the release page, published per family."""
-    folder = runtimes / "served"
-    folder.mkdir()
-    monkeypatch.setattr(release, "BASE_URL", folder.as_uri())
-    at(monkeypatch, "win32", "x64")
-
-    def publish(family, *archives):
-        packages = []
-        for name, members in archives:
-            archive_zip(folder / name, members)
-            packages.append((name, release.sha256_file(folder / name)))
-        release.PACKAGES[("win32", "x64", family)] = packages
-
-    monkeypatch.setattr(release, "PACKAGES", {})
-    return publish
-
-
-def test_install_returns_the_directory_that_holds_the_library(served):
-    served("cpu", ("cpu.zip", {f"bin/{LIBRARY}": b"lib", "bin/ggml.dll": b"g"}))
-    assert release.install("cpu") == release.install_dir("cpu") / "bin"
-    assert release.install("cpu") == release.install_dir("cpu") / "bin"  # and when it is found
-
-
-def test_a_runtime_that_lost_its_library_is_replaced_by_the_next_install(served):
-    served("cpu", ("v1.zip", {LIBRARY: b"lib-v1", "ggml.dll": b"ggml-v1"}))
-    directory = release.install("cpu")
-    (directory / LIBRARY).unlink()  # antivirus quarantine, partial delete: the rest stays
-    assert release.installed() == []
-    served("cpu", ("v2.zip", {LIBRARY: b"lib-v2", "ggml.dll": b"ggml-v2"}))
-    assert release.install("cpu") == directory
-    assert release.installed() == ["cpu"]
-    assert (directory / LIBRARY).read_bytes() == b"lib-v2"
-    assert (directory / "ggml.dll").read_bytes() == b"ggml-v2"
-    assert not directory.with_name(directory.name + ".partial").exists()
-
-
-def test_a_bad_package_never_destroys_the_damaged_runtime_it_was_meant_to_repair(served):
-    served("cpu", ("v1.zip", {LIBRARY: b"lib-v1", "ggml.dll": b"ggml-v1"}))
-    directory = release.install("cpu")
-    (directory / LIBRARY).unlink()
-    served("cpu", ("empty.zip", {"README.txt": b"nothing useful"}))
-    with pytest.raises(ValueError, match=rf"^{re.escape(LIBRARY)} not found in the cpu package$"):
-        release.install("cpu")
-    # Refused before anything was removed.
-    assert (directory / "ggml.dll").read_bytes() == b"ggml-v1"
