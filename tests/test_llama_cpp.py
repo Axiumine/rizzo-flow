@@ -8,6 +8,7 @@ outlives its context, and a batch is read the way the C side reads it.
 """
 
 import ctypes
+import os
 import re
 import sys
 import types
@@ -535,3 +536,21 @@ def test_an_option_that_cannot_be_set_is_refused_before_the_model_is_loaded(runt
         load(runtime, **options)
     assert runtime.model_loads == []  # the ~10 s load of the weights was never started
     assert runtime.model_alive is False
+
+
+def test_windows_puts_the_folder_on_path_unless_an_entry_is_exactly_it(tmp_path, monkeypatch):
+    native = Native().install(tmp_path, monkeypatch, "win32")
+    monkeypatch.setattr(os, "add_dll_directory", lambda folder: None, raising=False)
+    folder = str(native.directory.resolve())
+    monkeypatch.setenv("PATH", os.pathsep.join([folder + "-old", "C:\\Windows"]))
+    Library(native.directory)
+    assert os.environ["PATH"].split(os.pathsep)[0] == folder
+
+
+def test_windows_takes_another_spelling_of_the_folder_for_the_folder(tmp_path, monkeypatch):
+    native = Native().install(tmp_path, monkeypatch, "win32")
+    monkeypatch.setattr(os, "add_dll_directory", lambda folder: None, raising=False)
+    present = os.pathsep.join(["C:\\Tools", str(native.directory.resolve()) + os.sep])
+    monkeypatch.setenv("PATH", present)
+    Library(native.directory)
+    assert os.environ["PATH"] == present

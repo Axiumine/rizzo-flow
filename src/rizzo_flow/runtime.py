@@ -14,6 +14,17 @@ INSTALL_HINT = (
 )
 
 
+def on_path(folder: str | os.PathLike[str]) -> bool:
+    """Whether `folder` is an entry of PATH. Whole entries are compared, as paths (Windows ignores
+    case and slash direction): an entry that merely starts with the folder's name is another one."""
+    wanted = os.path.normcase(os.path.normpath(folder))
+    return any(
+        os.path.normcase(os.path.normpath(entry)) == wanted
+        for entry in os.environ.get("PATH", "").split(os.pathsep)
+        if entry
+    )
+
+
 def prepare():
     """Make the MLX stack importable on Windows; does nothing elsewhere. Safe to call twice."""
     if sys.platform != "win32":
@@ -27,7 +38,7 @@ def prepare():
     # mlx-cuda loads the CUDA DLLs of the nvidia-* wheels lazily; they are not on PATH.
     nvidia = Path(sysconfig.get_paths()["purelib"]) / "nvidia"
     folders = [nvidia / "cu13" / "bin" / "x86_64", nvidia / "cudnn" / "bin"]
-    found = [str(f) for f in folders if f.is_dir() and str(f) not in os.environ.get("PATH", "")]
+    found = [str(f) for f in folders if f.is_dir() and not on_path(f)]
     if found:
         os.environ["PATH"] = os.pathsep.join([*found, os.environ.get("PATH", "")])
 

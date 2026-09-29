@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from . import llama_release
+from .runtime import on_path
 
 LOG_ENV = "RIZZO_LLAMA_LOG"  # set to 1 to see llama.cpp's own info/debug lines
 GPU_LAYERS = 999  # more than any model has: offload everything
@@ -249,7 +250,7 @@ class Library:
         if sys.platform == "win32":
             # Dependencies of the plug-ins (CUDA runtime, OpenMP) sit in the same folder.
             os.add_dll_directory(folder)
-            if folder not in os.environ.get("PATH", ""):
+            if not on_path(folder):
                 os.environ["PATH"] = folder + os.pathsep + os.environ.get("PATH", "")
         else:
             # A library already loaded satisfies later lookups by soname, which stands in for
