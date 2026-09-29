@@ -18,6 +18,7 @@ from .compat import (
     resolve_model,
     to_native,
 )
+from .engine import BackendError
 from .responses import Response
 from .schema import Request
 
@@ -98,6 +99,8 @@ def create_app(engine, api_key=None):
     def decisions(request: Request):
         try:
             return engine.decide(request)
+        except BackendError as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
@@ -113,6 +116,8 @@ def create_app(engine, api_key=None):
                 status_code=400,
                 detail={"error_type": "api_usage_error", "message": str(error)},
             ) from error
+        except BackendError as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 

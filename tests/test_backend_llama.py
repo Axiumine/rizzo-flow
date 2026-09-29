@@ -1,9 +1,13 @@
 """llama.cpp backend logic against a recording fake session: no library, no weights."""
 
 import pytest
+from fastapi.testclient import TestClient
+from test_service import CharacterTokenizer
 
 from rizzo_flow import backend_llama, config, loader
+from rizzo_flow.api import create_app
 from rizzo_flow.backend_llama import LlamaBackend, LlamaTokenizer
+from rizzo_flow.engine import Engine
 from rizzo_flow.llama_cpp import Device, choose_device
 from rizzo_flow.prompts import Compiled
 
@@ -273,3 +277,45 @@ def test_close_releases_the_session_before_the_interpreter_goes_away():
     engine = backend()
     engine.close()
     assert ("close",) in engine.session.calls
+
+
+class FailingSession(FakeSession):
+    """A runtime whose decode fails the way `Session.decode` does, while `status` is not 0."""
+
+    status = 0
+
+    def decode(self, tokens, positions, sequences, outputs=()):
+        if self.status:
+            reason = "the context is full" if self.status == 1 else "compute error"
+            raise ValueError(f"llama_decode returned {self.status}: {reason}")
+        super().decode(tokens, positions, sequences, outputs)
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"), [(1, "the context is full"), (-3, "compute error")], ids=["full", "error"]
+)
+def test_a_llama_decode_that_fails_is_a_503_and_the_next_request_is_served(status, reason):
+    # The session says ValueError, the engine turns it into BackendError, the API into a 503: a
+    # client that sent a good request is not told that it sent a bad one.
+    session = FailingSession()
+    model = LlamaBackend(session, CharacterTokenizer(), {"fingerprint": "test"})
+    native = {"state": "ticket", "questions": {"q": {"type": "boolean", "instructions": "Urgent?"}}}
+    wire = {
+        "state": "ticket",
+        "model": "rizzo-latest",
+        "questions": {"q": {"type": "noul", "instructions": "Urgent?"}},
+    }
+    with TestClient(create_app(Engine(model), api_key="")) as client:
+        session.status = status
+        failed = [
+            client.post("/v1/decisions", json=native),
+            client.post("/v1/systemone", json=wire),
+        ]
+        session.status = 0
+        served = [
+            client.post("/v1/decisions", json=native),
+            client.post("/v1/systemone", json=wire),
+        ]
+    detail = {"detail": f"llama_decode returned {status}: {reason}"}
+    assert [(response.status_code, response.json()) for response in failed] == [(503, detail)] * 2
+    assert [response.status_code for response in served] == [200, 200]

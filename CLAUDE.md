@@ -68,7 +68,10 @@ curl/playground) o con `validate_checkpoint.py`.
 `backend_llama.LlamaBackend.score` (o `backend.SparkBackend.score` con MLX; scelta in
 `loader.load_backend`) → `decisions.decode` → `responses.py` (la risposta è ri-validata
 prima di uscire). `engine.Engine` orchestra tutto sotto un `Lock` (un solo modello residente:
-richieste HTTP concorrenti sono serializzate; il parallelismo è *dentro* la richiesta).
+richieste HTTP concorrenti sono serializzate; il parallelismo è *dentro* la richiesta). Un `ValueError`
+che arriva dal backend dopo validazione e compilazione (un `llama_decode` che fallisce, logit non
+numerici) diventa `engine.BackendError` (sottoclasse di `ValueError`), che `api.py` risponde con **503**:
+i `ValueError` di validazione restano 422.
 
 - **Runtime llama.cpp (tre moduli, nessuna dipendenza Python oltre a `jinja2`).**
   `llama_release.py`: release pinnata (`RELEASE`/`COMMIT`), tabella `PACKAGES` (os, macchina,
@@ -162,7 +165,7 @@ richieste HTTP concorrenti sono serializzate; il parallelismo è *dentro* la ric
   scrive NaN, Infinity e lone surrogate come testo e si ferma a 100 livelli di annidamento
   (`api.MAX_ECHO_DEPTH`, `"<nested too deeply>"`). 401 solo su `/v1/systemone` e `/v1/models` (chiave
   mancante o errata). 400 su `/v1/systemone` per un modello non servito (`{"error_type":
-  "api_usage_error"}`).
+  "api_usage_error"}`). **503** per `engine.BackendError`: il modello ha fallito su una richiesta valida.
 - `GET /playground` (`playground.html`, pagina singola senza dipendenze esterne, servita dal
   package): builder noul/choice/score, esempi, editor JSON per entrambi gli endpoint, barre di
   probabilità, metriche (round-trip, inferenza, prefill, microbatch, token in cache), cURL.
@@ -203,7 +206,8 @@ sulla pagina vanno tenuti allineati a README e `results/`.
 - **Risultati create-only.** `cli.write_json` e gli script aprono i file in modalità `"x"`: non
   sovrascrivere né riscrivere report in `results/`; per nuovi esperimenti usare un percorso nuovo
   (`results/local-*` è ignorato). `results/SHA256SUMS` copre i report storici.
-- **Niente troncamento silenzioso.** Input oltre i limiti → `ValueError` → HTTP 422.
+- **Niente troncamento silenzioso.** Input oltre i limiti → `ValueError` → HTTP 422. Un fallimento del
+  modello su una richiesta valida è un altro caso: `BackendError` → HTTP 503.
 - **Non ottimizzare sul test.** Le fixture proprie (`benchmarks/smoke.jsonl`) sono già state usate
   per rivedere il prompt (vedi `benchmarks/README.md`). Per il lavoro sul prompt esiste uno split
   dev/held-out (sotto): l'held-out si guarda una volta sola.

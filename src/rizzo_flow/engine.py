@@ -10,6 +10,10 @@ from .responses import Response
 from .schema import Request
 
 
+class BackendError(ValueError):
+    """The model failed on a valid request (a ValueError, so callers that catch those still do)."""
+
+
 class Engine:
     def __init__(self, backend, ctx=8192, calibration=None):
         if ctx < 1:
@@ -37,20 +41,25 @@ class Engine:
             acquired = time.perf_counter()
             prefix, jobs = compile_request(self.backend.tokenizer, request, self.ctx)
             encoded = time.perf_counter()
-            logits, timing = self._worker.submit(
-                self.backend.score, prefix, jobs, request.mode
-            ).result()
-            answers = {}
-            for job in jobs:
-                question = request.questions[job.id]
-                temperature = (
-                    self.calibration.temperatures.get(question.type, 1.0)
-                    if self.calibration
-                    else 1.0
-                )
-                answers[job.id] = decode(question, logits[job.id], temperature)
-                answers[job.id]["prompt_sha256"] = job.prompt_sha256
-                answers[job.id]["input_tokens"] = len(job.tokens)
+            try:
+                logits, timing = self._worker.submit(
+                    self.backend.score, prefix, jobs, request.mode
+                ).result()
+                answers = {}
+                for job in jobs:
+                    question = request.questions[job.id]
+                    temperature = (
+                        self.calibration.temperatures.get(question.type, 1.0)
+                        if self.calibration
+                        else 1.0
+                    )
+                    answers[job.id] = decode(question, logits[job.id], temperature)
+                    answers[job.id]["prompt_sha256"] = job.prompt_sha256
+                    answers[job.id]["input_tokens"] = len(job.tokens)
+            except ValueError as error:
+                # The request is validated and compiled: from here on, a ValueError is the
+                # runtime's (a failed llama_decode, logits that are not numbers or not enough).
+                raise BackendError(str(error)) from error
         response = {
             "model": self.backend.metadata,
             "mode": request.mode,

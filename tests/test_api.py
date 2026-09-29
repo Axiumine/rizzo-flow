@@ -239,6 +239,50 @@ def test_any_ascii_key_works_as_a_bearer_token():
     assert client.get("/v1/models", headers={"Authorization": "Bearer x"}).status_code == 401
 
 
+# a model that fails ------------------------------------------------------------------------------
+
+
+class FaultyBackend(RecordingBackend):
+    """A model that fails on requests that are fine; `fault` says how."""
+
+    def __init__(self):
+        super().__init__()
+        self.fault = None
+
+    def score(self, prefix, jobs, mode):
+        if self.fault == "decode":
+            raise ValueError("llama_decode returned -3: compute error")
+        logits, timing = super().score(prefix, jobs, mode)
+        if self.fault == "nan":
+            logits = {job.id: [math.nan] * len(job.slots) for job in jobs}
+        elif self.fault == "short":
+            logits = {job.id: [0.0] for job in jobs}
+        return logits, timing
+
+
+FAULTS = {
+    "decode": "llama_decode returned -3: compute error",
+    "nan": "At least two finite logits are required",
+    "short": "Logit count does not match the declared candidates",
+}
+
+
+@pytest.mark.parametrize("fault", FAULTS)
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [("/v1/decisions", native()), ("/v1/systemone", wire())],
+    ids=["native", "wire"],
+)
+def test_a_failure_of_the_model_is_a_503_not_a_client_error(path, body, fault):
+    backend = FaultyBackend()
+    client = TestClient(create_app(Engine(backend), api_key=""), raise_server_exceptions=False)
+    backend.fault = fault
+    response = client.post(path, json=body)
+    assert (response.status_code, response.json()) == (503, {"detail": FAULTS[fault]})
+    backend.fault = None
+    assert client.post(path, json=body).status_code == 200  # the failure did not wedge the engine
+
+
 # lone surrogates ---------------------------------------------------------------------------------
 # JSON allows "\ud800" as an escape; it is not text that can be written out as UTF-8.
 
