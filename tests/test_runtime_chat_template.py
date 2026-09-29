@@ -128,21 +128,32 @@ def test_a_chat_template_that_cannot_run_ends_decide_with_one_line_and_frees_the
     assert [session.closed for session in made] == [1]  # the context was given back, once
 
 
-def serve(template):
-    """A test client on an engine whose template is the one asked for."""
-    session = Session(template)
-    backend = LlamaBackend(session, LlamaTokenizer(session, template), {"fingerprint": "test"})
-    return TestClient(create_app(Engine(backend)), raise_server_exceptions=False)
+@pytest.fixture
+def serve(monkeypatch):
+    """A test client on an engine whose template is the one asked for; the engine is closed."""
+    engines = []
+
+    def build(template):
+        session = Session(template)
+        backend = LlamaBackend(session, LlamaTokenizer(session, template), {"fingerprint": "test"})
+        engines.append(Engine(backend))
+        return TestClient(create_app(engines[-1]), raise_server_exceptions=False)
+
+    yield build
+    for engine in engines:
+        engine.close()
 
 
 @pytest.mark.parametrize(("template", "told"), RENDER)
-def test_a_chat_template_that_cannot_run_is_a_422_with_its_reason_and_not_a_500(template, told):
+def test_a_chat_template_that_cannot_run_is_a_422_with_its_reason_and_not_a_500(
+    serve, template, told
+):
     reply = serve(template).post("/v1/decisions", json=REQUEST)
     assert reply.status_code == 422
     assert reply.json()["detail"].startswith(told)
 
 
-def test_a_server_whose_template_cannot_run_keeps_answering():
+def test_a_server_whose_template_cannot_run_keeps_answering(serve):
     """Nothing is left in a bad state by a refused request: the next one is refused the same way."""
     client = serve("{{ ''.__class__.__mro__ }}")
     statuses = [client.post("/v1/decisions", json=REQUEST).status_code for _ in range(3)]
