@@ -22,18 +22,21 @@ dependencies = ["pydantic>=2.11,<3", "fastapi>=0.132,<1", "uvicorn>=0.34,<1", "j
 mlx = [
   "mlx==0.32.2",
   "mlx-lm==0.31.3",
+  "huggingface-hub>=1.0",  # config.download_model imports it directly
   "spark-mlx-llm @ git+https://github.com/XHToken/Spark-MLX-LLM.git@de2b4379fa1e2f2e1f99d84c83f0e008f651d86c",
 ]
 cuda = [
   "mlx==0.32.2",
   "mlx-cuda-13==0.32.2; sys_platform != 'darwin'",
   "mlx-lm==0.31.3",
+  "huggingface-hub>=1.0",  # config.download_model imports it directly
   "spark-mlx-llm @ git+https://github.com/XHToken/Spark-MLX-LLM.git@de2b4379fa1e2f2e1f99d84c83f0e008f651d86c",
 ]
 cpu = [
   "mlx==0.32.2",
   "mlx-cpu==0.32.2; sys_platform != 'darwin'",
   "mlx-lm==0.31.3",
+  "huggingface-hub>=1.0",  # config.download_model imports it directly
   "spark-mlx-llm @ git+https://github.com/XHToken/Spark-MLX-LLM.git@de2b4379fa1e2f2e1f99d84c83f0e008f651d86c",
 ]
 test = ["pytest>=8.4,<10", "httpx>=0.28,<1", "ruff>=0.12"]
