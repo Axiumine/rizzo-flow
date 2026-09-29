@@ -21,6 +21,9 @@ SYSTEM = (
     "- Reply with that option's uppercase letter and nothing else."
 )
 CLOSING = "Answer with the letter of the best option."
+# An answer letter can only merge with the end of the prompt, so that is all that is tokenized
+# again to check it: the whole prompt, once per letter, takes seconds on a long state.
+TAIL_CHARS = 256
 
 
 NUMERIC_GUIDANCE = (
@@ -90,12 +93,14 @@ def compile_request(tokenizer, request: Request, ctx: int) -> tuple[list[int], l
             raise ValueError(
                 f"Question {key}: {len(tokens)} tokens exceeds the context limit {ctx} (--ctx); no truncation"
             )
+        tail = prompt[-TAIL_CHARS:]
+        tail_ids = tokenizer.encode(tail, add_special_tokens=False)
         slots = []
         for letter in string.ascii_uppercase[: len(cs)]:
             encoded = tokenizer.encode(letter, add_special_tokens=False)
             if (
                 len(encoded) != 1
-                or tokenizer.encode(prompt + letter, add_special_tokens=False) != tokens + encoded
+                or tokenizer.encode(tail + letter, add_special_tokens=False) != tail_ids + encoded
             ):
                 raise ValueError(
                     f"Tokenizer does not support exact single-token answer slot {letter}"

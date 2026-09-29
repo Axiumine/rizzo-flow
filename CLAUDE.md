@@ -104,7 +104,10 @@ inferenza: liberarne il contesto sotto di lui sarebbe un use after free).
   posizioni). `peak_device_bytes` = calo della memoria libera della GPU da prima del load.
 - **Slot a token singolo.** Ogni candidato (opzioni + speciali `__insufficient__`,
   `__below_range__`, `__above_range__`) è una lettera maiuscola A–Z. `prompts.py` verifica che
-  ogni lettera sia un token singolo e che `encode(prompt + lettera) == tokens + [id]`. Da qui il
+  ogni lettera sia un token singolo e che `encode(coda + lettera) == encode(coda) + [id]`, dove
+  `coda` sono gli ultimi 256 caratteri del prompt (`TAIL_CHARS`: una lettera può fondersi solo con la
+  fine del prompt, mentre ritokenizzare il prompt intero una volta per lettera costava secondi su uno
+  state lungo). Da qui il
   limite `MAX_SLOTS = 26` in `schema.py` (`require_slots`): 26 opzioni/livelli con
   `allow_abstain: false`, 25 con astensione, 24/23 ancore per `numeric`. SemIf usa lo stesso
   trucco con 16 lettere. Per andare oltre servirebbero etichette a 2 token (chain rule),
