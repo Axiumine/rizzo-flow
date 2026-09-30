@@ -18,3 +18,7 @@ The runner was executed from the repository root:
 `.venv/bin/python .research/hw-campaign/run_campaign.py` (resumable; `--dry-run` prints the plan,
 `--render` rebuilds the reports from `ledger.json`). Paths and hostnames in these files are those
 of the test machine; the Prometheus/DCGM telemetry is optional and the runner works without it.
+
+## Follow-up
+
+[`flow-followup/`](flow-followup/): the same machine with the fine-tuned weights (`--weights flow`), 39 runs, 30 September 2026.

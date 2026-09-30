@@ -1,0 +1,176 @@
+
+=== run_flow.py 2026-09-30 22:03:54 pid 93313 args [] ===
+# flow follow-up (campaign): 39 runs planned, 39 to do; every model command passes --weights flow
+# output results/local-hw-flow, ledger .research/hw-campaign/ledger-flow.json (absent), log .research/hw-campaign/campaign-flow.log
+# base campaign, read-only: 141 runs in .research/hw-campaign/ledger.json, outputs in results/local-hw; run ids pair with the flow ids
+# ETA: measured wall time of the same run id in the base ledger + 13 s baseline/settle for 39 of 39 runs; rc.estimate() model for the other 0
+# cpu threads: 16 (rc.cpu_threads on the base ledger)
+# idle gate: on: external CPU <= 1.0 threads (this runner's own CPU subtracted), no foreign GPU compute process, GPU utilization <= 25 %; a 5 s window before every run; when busy, measure again every 60 s (waiting for ever) and log at most every 10 min; 3 idle windows in a row after a wait; a run with external CPU > 1.0 threads, a foreign compute process or a GPU that was not watched (no nvidia-smi answer for 30 s) is moved to _contaminated/ and repeated (at most 3 attempts)
+# deferral: cuda-4b-q8_0-q8_0-T7, cuda-4b-q8_0-q4_0-T7, cpu-4b-q8_0-f16-T7 wait until cuda-4b-q8_0-f16-T7 is recorded ok, to be paired with it
+# weights 4b/q8_0: models/rizzo-flow/spark-x2.5-4b-rizzo-flow-lora-q8_0.gguf (4.38 GB, present) -> served as rizzo-flow-4b-q8_0
+# weights 4b/bf16: models/rizzo-flow/spark-x2.5-4b-rizzo-flow-lora-bf16.gguf (8.23 GB, present) -> served as rizzo-flow-4b-bf16
+# weights 4b/q4_k_m: models/rizzo-flow/spark-x2.5-4b-rizzo-flow-lora-q4_k_m.gguf (2.60 GB, present) -> served as rizzo-flow-4b-q4_k_m
+# weights 1.7b/q8_0: models/rizzo-flow-1.7b/spark-x2.5-1.7b-rizzo-flow-lora-q8_0.gguf (1.82 GB, present) -> served as rizzo-flow-1.7b-q8_0
+# weights 1.7b/q4_k_m: models/rizzo-flow-1.7b/spark-x2.5-1.7b-rizzo-flow-lora-q4_k_m.gguf (1.11 GB, present) -> served as rizzo-flow-1.7b-q4_k_m
+# weights 1.7b/bf16: models/rizzo-flow-1.7b/spark-x2.5-1.7b-rizzo-flow-lora-bf16.gguf (3.42 GB, present) -> served as rizzo-flow-1.7b-bf16
+[22:03:54] start T0-unit
+[22:03:59] gate T0-unit: not idle: external CPU 3.21 threads > 1.0 (top: pycharm 2.5, dcgm-exporter 0.1, claude 0.1; they account for 2.81 of the 3.21 threads, the rest is short-lived processes, kernel or softirq time); GPU utilization 27 % > 25 %; measuring again in 60 s (waiting 0.0 min)
+[22:05:15] gate T0-unit: idle: external CPU 0.20 threads, GPU utilization 18 %, no foreign compute process (after 1.3 min, 3 idle windows in a row)
+[22:05:29] load T0-unit: external CPU 0.70 threads over the run, 0.18 in the timed window (limit 1.0), foreign GPU compute processes none in 6 of 6 polls -> clean
+[22:05:29] done  T0-unit ok 0.9s exit [0]
+[22:05:29] start T1-integration-4b
+[22:05:34] gate T1-integration-4b: idle: external CPU 0.46 threads, GPU utilization 24 %, no foreign compute process
+[22:05:56] load T1-integration-4b: external CPU 0.37 threads over the run, 0.44 in the timed window (limit 1.0), foreign GPU compute processes none in 9 of 9 polls -> clean
+[22:05:56] done  T1-integration-4b ok 8.6s exit [0]
+[22:05:56] start cuda-4b-q8_0-f16-T4
+[22:06:01] gate cuda-4b-q8_0-f16-T4: idle: external CPU 0.57 threads, GPU utilization 6 %, no foreign compute process
+[22:06:18] load cuda-4b-q8_0-f16-T4: external CPU 0.52 threads over the run, 0.96 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:06:18] done  cuda-4b-q8_0-f16-T4 ok 4.5s exit [0]
+[22:06:18] start cuda-4b-q8_0-f16-T5
+[22:06:23] gate cuda-4b-q8_0-f16-T5: idle: external CPU 0.98 threads, GPU utilization 5 %, no foreign compute process
+[22:06:40] load cuda-4b-q8_0-f16-T5: external CPU 1.68 threads over the run, 1.36 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> CONTAMINATED: external CPU 1.68 threads over the whole run (27.5 CPU-s in 16 s; limit 1.0; top: pycharm 1.3, cinnamon 0.1, claude 0.0); external CPU 1.36 threads in the timed window (limit 1.0)
+[22:06:45] gate cuda-4b-q8_0-f16-T5: idle window 1/3, measuring again
+[22:06:55] gate cuda-4b-q8_0-f16-T5: idle: external CPU 0.28 threads, GPU utilization 12 %, no foreign compute process
+[22:07:12] load cuda-4b-q8_0-f16-T5: external CPU 0.70 threads over the run, 0.66 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:07:12] done  cuda-4b-q8_0-f16-T5 ok 3.4s exit [0]
+[22:07:12] start cuda-4b-q8_0-f16-T6
+[22:07:17] gate cuda-4b-q8_0-f16-T6: idle: external CPU 0.36 threads, GPU utilization 2 %, no foreign compute process
+[22:07:37] load cuda-4b-q8_0-f16-T6: external CPU 0.26 threads over the run, 0.29 in the timed window (limit 1.0), foreign GPU compute processes none in 8 of 8 polls -> clean
+[22:07:37] done  cuda-4b-q8_0-f16-T6 ok 7.5s exit [0]
+[22:07:37] start cuda-4b-q8_0-f16-T7
+[22:07:42] gate cuda-4b-q8_0-f16-T7: idle: external CPU 0.31 threads, GPU utilization 2 %, no foreign compute process
+[22:12:31] load cuda-4b-q8_0-f16-T7: external CPU 0.22 threads over the run, 0.22 in the timed window (limit 1.0), foreign GPU compute processes none in 97 of 97 polls -> clean
+[22:12:31] done  cuda-4b-q8_0-f16-T7 ok 275.0s exit [0]
+[22:12:31] start cuda-4b-q8_0-f16-T9
+[22:12:36] gate cuda-4b-q8_0-f16-T9: idle: external CPU 0.40 threads, GPU utilization 3 %, no foreign compute process
+[22:13:49] load cuda-4b-q8_0-f16-T9: external CPU 0.24 threads over the run, 0.22 in the timed window (limit 1.0), foreign GPU compute processes none in 26 of 26 polls -> clean
+[22:13:50] done  cuda-4b-q8_0-f16-T9 ok 60.3s exit [0]
+[22:13:50] start cuda-4b-bf16-f16-T4
+[22:13:55] gate cuda-4b-bf16-f16-T4: idle: external CPU 0.40 threads, GPU utilization 2 %, no foreign compute process
+[22:14:15] load cuda-4b-bf16-f16-T4: external CPU 0.23 threads over the run, 0.27 in the timed window (limit 1.0), foreign GPU compute processes none in 8 of 8 polls -> clean
+[22:14:15] done  cuda-4b-bf16-f16-T4 ok 7.2s exit [0]
+[22:14:15] start cuda-4b-bf16-f16-T5
+[22:14:20] gate cuda-4b-bf16-f16-T5: idle: external CPU 0.33 threads, GPU utilization 3 %, no foreign compute process
+[22:14:38] load cuda-4b-bf16-f16-T5: external CPU 0.24 threads over the run, 0.31 in the timed window (limit 1.0), foreign GPU compute processes none in 8 of 8 polls -> clean
+[22:14:38] done  cuda-4b-bf16-f16-T5 ok 5.1s exit [0]
+[22:14:38] start cuda-4b-bf16-f16-T6
+[22:14:43] gate cuda-4b-bf16-f16-T6: idle: external CPU 0.43 threads, GPU utilization 2 %, no foreign compute process
+[22:15:06] load cuda-4b-bf16-f16-T6: external CPU 0.23 threads over the run, 0.25 in the timed window (limit 1.0), foreign GPU compute processes none in 9 of 9 polls -> clean
+[22:15:06] done  cuda-4b-bf16-f16-T6 ok 9.2s exit [0]
+[22:15:06] start cuda-4b-bf16-f16-T7
+[22:15:11] gate cuda-4b-bf16-f16-T7: idle: external CPU 0.43 threads, GPU utilization 2 %, no foreign compute process
+[22:20:13] load cuda-4b-bf16-f16-T7: external CPU 0.22 threads over the run, 0.22 in the timed window (limit 1.0), foreign GPU compute processes none in 102 of 102 polls -> clean
+[22:20:13] done  cuda-4b-bf16-f16-T7 ok 289.4s exit [0]
+[22:20:13] start cuda-4b-bf16-f16-T9
+[22:20:19] gate cuda-4b-bf16-f16-T9: idle: external CPU 0.33 threads, GPU utilization 2 %, no foreign compute process
+[22:21:36] load cuda-4b-bf16-f16-T9: external CPU 0.23 threads over the run, 0.23 in the timed window (limit 1.0), foreign GPU compute processes none in 27 of 27 polls -> clean
+[22:21:36] done  cuda-4b-bf16-f16-T9 ok 63.8s exit [0]
+[22:21:36] start cuda-4b-q4_k_m-f16-T4
+[22:21:41] gate cuda-4b-q4_k_m-f16-T4: idle: external CPU 0.40 threads, GPU utilization 2 %, no foreign compute process
+[22:21:58] load cuda-4b-q4_k_m-f16-T4: external CPU 0.21 threads over the run, 0.26 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:21:58] done  cuda-4b-q4_k_m-f16-T4 ok 4.0s exit [0]
+[22:21:58] start cuda-4b-q4_k_m-f16-T5
+[22:22:03] gate cuda-4b-q4_k_m-f16-T5: idle: external CPU 0.31 threads, GPU utilization 3 %, no foreign compute process
+[22:22:19] load cuda-4b-q4_k_m-f16-T5: external CPU 0.21 threads over the run, 0.21 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:22:19] done  cuda-4b-q4_k_m-f16-T5 ok 2.6s exit [0]
+[22:22:19] start cuda-4b-q4_k_m-f16-T6
+[22:22:24] gate cuda-4b-q4_k_m-f16-T6: idle: external CPU 0.38 threads, GPU utilization 2 %, no foreign compute process
+[22:22:44] load cuda-4b-q4_k_m-f16-T6: external CPU 0.25 threads over the run, 0.27 in the timed window (limit 1.0), foreign GPU compute processes none in 8 of 8 polls -> clean
+[22:22:44] done  cuda-4b-q4_k_m-f16-T6 ok 6.9s exit [0]
+[22:22:44] start cuda-4b-q4_k_m-f16-T7
+[22:22:49] gate cuda-4b-q4_k_m-f16-T7: idle: external CPU 0.36 threads, GPU utilization 3 %, no foreign compute process
+[22:24:08] load cuda-4b-q4_k_m-f16-T7: external CPU 0.23 threads over the run, 0.23 in the timed window (limit 1.0), foreign GPU compute processes none in 28 of 28 polls -> clean
+[22:24:08] done  cuda-4b-q4_k_m-f16-T7 ok 65.9s exit [0]
+[22:24:08] start cuda-4b-q4_k_m-f16-T9
+[22:24:13] gate cuda-4b-q4_k_m-f16-T9: idle: external CPU 0.38 threads, GPU utilization 2 %, no foreign compute process
+[22:25:28] load cuda-4b-q4_k_m-f16-T9: external CPU 0.21 threads over the run, 0.22 in the timed window (limit 1.0), foreign GPU compute processes none in 26 of 26 polls -> clean
+[22:25:29] done  cuda-4b-q4_k_m-f16-T9 ok 62.1s exit [0]
+[22:25:29] start cuda-1.7b-q8_0-f16-T4
+[22:25:34] gate cuda-1.7b-q8_0-f16-T4: idle: external CPU 0.42 threads, GPU utilization 2 %, no foreign compute process
+[22:25:49] load cuda-1.7b-q8_0-f16-T4: external CPU 0.21 threads over the run, 0.23 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:25:49] done  cuda-1.7b-q8_0-f16-T4 ok 2.6s exit [0]
+[22:25:49] start cuda-1.7b-q8_0-f16-T5
+[22:25:54] gate cuda-1.7b-q8_0-f16-T5: idle: external CPU 0.42 threads, GPU utilization 2 %, no foreign compute process
+[22:26:09] load cuda-1.7b-q8_0-f16-T5: external CPU 0.20 threads over the run, 0.18 in the timed window (limit 1.0), foreign GPU compute processes none in 6 of 6 polls -> clean
+[22:26:09] done  cuda-1.7b-q8_0-f16-T5 ok 1.9s exit [0]
+[22:26:09] start cuda-1.7b-q8_0-f16-T6
+[22:26:15] gate cuda-1.7b-q8_0-f16-T6: idle: external CPU 0.40 threads, GPU utilization 2 %, no foreign compute process
+[22:26:31] load cuda-1.7b-q8_0-f16-T6: external CPU 0.23 threads over the run, 0.16 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:26:31] done  cuda-1.7b-q8_0-f16-T6 ok 3.8s exit [0]
+[22:26:31] start cuda-1.7b-q8_0-f16-T7
+[22:26:36] gate cuda-1.7b-q8_0-f16-T7: idle: external CPU 0.31 threads, GPU utilization 3 %, no foreign compute process
+[22:27:22] load cuda-1.7b-q8_0-f16-T7: external CPU 0.22 threads over the run, 0.21 in the timed window (limit 1.0), foreign GPU compute processes none in 17 of 17 polls -> clean
+[22:27:22] done  cuda-1.7b-q8_0-f16-T7 ok 32.6s exit [0]
+[22:27:22] start cuda-1.7b-q8_0-f16-T9
+[22:27:27] gate cuda-1.7b-q8_0-f16-T9: idle: external CPU 0.31 threads, GPU utilization 2 %, no foreign compute process
+[22:28:11] load cuda-1.7b-q8_0-f16-T9: external CPU 0.24 threads over the run, 0.22 in the timed window (limit 1.0), foreign GPU compute processes none in 16 of 16 polls -> clean
+[22:28:11] done  cuda-1.7b-q8_0-f16-T9 ok 30.0s exit [0]
+[22:28:11] start cuda-1.7b-q4_k_m-f16-T4
+[22:28:16] gate cuda-1.7b-q4_k_m-f16-T4: idle: external CPU 0.31 threads, GPU utilization 2 %, no foreign compute process
+[22:28:31] load cuda-1.7b-q4_k_m-f16-T4: external CPU 0.24 threads over the run, 0.20 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:28:31] done  cuda-1.7b-q4_k_m-f16-T4 ok 2.2s exit [0]
+[22:28:31] start cuda-1.7b-q4_k_m-f16-T5
+[22:28:36] gate cuda-1.7b-q4_k_m-f16-T5: idle: external CPU 0.25 threads, GPU utilization 3 %, no foreign compute process
+[22:28:51] load cuda-1.7b-q4_k_m-f16-T5: external CPU 0.23 threads over the run, 0.21 in the timed window (limit 1.0), foreign GPU compute processes none in 6 of 6 polls -> clean
+[22:28:51] done  cuda-1.7b-q4_k_m-f16-T5 ok 1.5s exit [0]
+[22:28:51] start cuda-1.7b-q4_k_m-f16-T6
+[22:28:56] gate cuda-1.7b-q4_k_m-f16-T6: idle: external CPU 0.33 threads, GPU utilization 3 %, no foreign compute process
+[22:29:12] load cuda-1.7b-q4_k_m-f16-T6: external CPU 0.24 threads over the run, 0.14 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:29:12] done  cuda-1.7b-q4_k_m-f16-T6 ok 3.6s exit [0]
+[22:29:12] start cuda-1.7b-q4_k_m-f16-T7
+[22:29:18] gate cuda-1.7b-q4_k_m-f16-T7: idle: external CPU 0.29 threads, GPU utilization 2 %, no foreign compute process
+[22:30:04] load cuda-1.7b-q4_k_m-f16-T7: external CPU 0.22 threads over the run, 0.23 in the timed window (limit 1.0), foreign GPU compute processes none in 17 of 17 polls -> clean
+[22:30:04] done  cuda-1.7b-q4_k_m-f16-T7 ok 33.5s exit [0]
+[22:30:04] start cuda-1.7b-q4_k_m-f16-T9
+[22:30:10] gate cuda-1.7b-q4_k_m-f16-T9: idle: external CPU 0.31 threads, GPU utilization 3 %, no foreign compute process
+[22:30:53] load cuda-1.7b-q4_k_m-f16-T9: external CPU 0.22 threads over the run, 0.23 in the timed window (limit 1.0), foreign GPU compute processes none in 16 of 16 polls -> clean
+[22:30:53] done  cuda-1.7b-q4_k_m-f16-T9 ok 30.7s exit [0]
+[22:30:53] start cuda-1.7b-bf16-f16-T4
+[22:30:58] gate cuda-1.7b-bf16-f16-T4: idle: external CPU 0.30 threads, GPU utilization 2 %, no foreign compute process
+[22:31:15] load cuda-1.7b-bf16-f16-T4: external CPU 0.24 threads over the run, 0.29 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:31:15] done  cuda-1.7b-bf16-f16-T4 ok 3.6s exit [0]
+[22:31:15] start cuda-1.7b-bf16-f16-T5
+[22:31:20] gate cuda-1.7b-bf16-f16-T5: idle: external CPU 0.30 threads, GPU utilization 3 %, no foreign compute process
+[22:31:36] load cuda-1.7b-bf16-f16-T5: external CPU 0.23 threads over the run, 0.37 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:31:36] done  cuda-1.7b-bf16-f16-T5 ok 2.6s exit [0]
+[22:31:36] start cuda-1.7b-bf16-f16-T6
+[22:31:41] gate cuda-1.7b-bf16-f16-T6: idle: external CPU 0.42 threads, GPU utilization 2 %, no foreign compute process
+[22:31:59] load cuda-1.7b-bf16-f16-T6: external CPU 0.23 threads over the run, 0.21 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:31:59] done  cuda-1.7b-bf16-f16-T6 ok 4.7s exit [0]
+[22:31:59] start cuda-1.7b-bf16-f16-T7
+[22:32:04] gate cuda-1.7b-bf16-f16-T7: idle: external CPU 0.41 threads, GPU utilization 3 %, no foreign compute process
+[22:32:52] load cuda-1.7b-bf16-f16-T7: external CPU 0.22 threads over the run, 0.21 in the timed window (limit 1.0), foreign GPU compute processes none in 18 of 18 polls -> clean
+[22:32:52] done  cuda-1.7b-bf16-f16-T7 ok 35.1s exit [0]
+[22:32:52] start cuda-1.7b-bf16-f16-T9
+[22:32:57] gate cuda-1.7b-bf16-f16-T9: idle: external CPU 0.30 threads, GPU utilization 2 %, no foreign compute process
+[22:33:42] load cuda-1.7b-bf16-f16-T9: external CPU 0.23 threads over the run, 0.21 in the timed window (limit 1.0), foreign GPU compute processes none in 16 of 16 polls -> clean
+[22:33:42] done  cuda-1.7b-bf16-f16-T9 ok 31.4s exit [0]
+[22:33:42] start cuda-4b-q8_0-q8_0-T4
+[22:33:47] gate cuda-4b-q8_0-q8_0-T4: idle: external CPU 0.28 threads, GPU utilization 2 %, no foreign compute process
+[22:34:05] load cuda-4b-q8_0-q8_0-T4: external CPU 0.24 threads over the run, 0.31 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:34:05] done  cuda-4b-q8_0-q8_0-T4 ok 4.4s exit [0]
+[22:34:05] start cuda-4b-q8_0-q8_0-T7
+[22:34:10] gate cuda-4b-q8_0-q8_0-T7: idle: external CPU 0.29 threads, GPU utilization 2 %, no foreign compute process
+[22:35:29] load cuda-4b-q8_0-q8_0-T7: external CPU 0.22 threads over the run, 0.22 in the timed window (limit 1.0), foreign GPU compute processes none in 28 of 28 polls -> clean
+[22:35:29] done  cuda-4b-q8_0-q8_0-T7 ok 65.6s exit [0]
+[22:35:29] start cuda-4b-q8_0-q4_0-T4
+[22:35:34] gate cuda-4b-q8_0-q4_0-T4: idle: external CPU 0.43 threads, GPU utilization 3 %, no foreign compute process
+[22:35:51] load cuda-4b-q8_0-q4_0-T4: external CPU 0.23 threads over the run, 0.18 in the timed window (limit 1.0), foreign GPU compute processes none in 7 of 7 polls -> clean
+[22:35:51] done  cuda-4b-q8_0-q4_0-T4 ok 4.4s exit [0]
+[22:35:51] start cuda-4b-q8_0-q4_0-T7
+[22:35:56] gate cuda-4b-q8_0-q4_0-T7: idle: external CPU 0.31 threads, GPU utilization 2 %, no foreign compute process
+[22:37:15] load cuda-4b-q8_0-q4_0-T7: external CPU 0.24 threads over the run, 0.23 in the timed window (limit 1.0), foreign GPU compute processes none in 28 of 28 polls -> clean
+[22:37:15] done  cuda-4b-q8_0-q4_0-T7 ok 65.1s exit [0]
+[22:37:15] start cpu-4b-q8_0-f16-T4
+[22:37:20] gate cpu-4b-q8_0-f16-T4: idle: external CPU 0.19 threads, GPU utilization 2 %, no foreign compute process
+[22:38:15] load cpu-4b-q8_0-f16-T4: external CPU 0.33 threads over the run, 0.37 in the timed window (limit 1.0), foreign GPU compute processes none in 19 of 19 polls -> clean
+[22:38:15] done  cpu-4b-q8_0-f16-T4 ok 41.4s exit [0]
+[22:38:15] start cpu-4b-q8_0-f16-T7
+[22:38:20] gate cpu-4b-q8_0-f16-T7: idle: external CPU 0.22 threads, GPU utilization 19 %, no foreign compute process
+[22:59:55] load cpu-4b-q8_0-f16-T7: external CPU 0.32 threads over the run, 0.32 in the timed window (limit 1.0), foreign GPU compute processes none in 429 of 429 polls -> clean
+[22:59:55] done  cpu-4b-q8_0-f16-T7 ok 1281.7s exit [0]
+[22:59:55] start cpu-4b-q8_0-f16-T9
+[23:00:00] gate cpu-4b-q8_0-f16-T9: idle: external CPU 0.19 threads, GPU utilization 0 %, no foreign compute process
+[23:19:55] load cpu-4b-q8_0-f16-T9: external CPU 0.31 threads over the run, 0.31 in the timed window (limit 1.0), foreign GPU compute processes none in 395 of 395 polls -> clean
+[23:19:55] done  cpu-4b-q8_0-f16-T9 ok 1181.8s exit [0]
+# flow campaign: 39/39 runs recorded, 0 failed (0 by the weights guard); 1 contaminated attempt thrown away (cuda-4b-q8_0-f16-T5); elapsed 1h10m
